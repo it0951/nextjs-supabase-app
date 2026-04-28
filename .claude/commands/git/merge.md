@@ -1,4 +1,5 @@
 ---
+name: "git-merge"
 description: "브랜치를 안전하게 병합하고 충돌을 해결합니다"
 allowed-tools:
   [

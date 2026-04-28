@@ -1,4 +1,5 @@
 ---
+name: "git-branch"
 description: "브랜치 생성, 전환, 삭제 등 브랜치 관리 작업을 수행합니다"
 allowed-tools:
   [

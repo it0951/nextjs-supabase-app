@@ -1,4 +1,5 @@
 ---
+name: "git-pullrequest"
 description: "GitHub Pull Request를 생성하고 관리합니다"
 allowed-tools:
   [
