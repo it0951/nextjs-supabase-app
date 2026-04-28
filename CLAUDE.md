@@ -30,12 +30,17 @@ npm start
 
 # 코드 검사
 npm run lint           # ESLint 검사
+npm run lint:fix       # ESLint 자동 수정
+npm run format         # Prettier 포맷팅
+npm run format:check   # Prettier 검사만
+npm run typecheck      # TypeScript 타입 체크
+npm run check-all      # 타입 + ESLint + Prettier 통합 검사 (권장)
 ```
 
 ## ✅ 작업 완료 체크리스트
 
 ```bash
-npm run lint        # ESLint 검사 통과 확인
+npm run check-all   # 타입체크 + ESLint + Prettier 통합 검사
 npm run build       # 빌드 성공 확인
 ```
 
@@ -136,6 +141,21 @@ import { Button } from "@/components/ui/button";
 
 - Supabase 데이터베이스 타입은 `types/supabase.ts`에 정의됨 (Supabase CLI로 자동 생성)
 - 타입 생성: `npx supabase gen types typescript --linked > types/supabase.ts`
+
+## Git Hooks (Husky + lint-staged)
+
+커밋 전 자동으로 코드 품질 검사를 수행합니다:
+
+- **pre-commit**: 스테이지된 파일에 대해 ESLint 자동 수정 + Prettier 포맷팅 실행
+- **설정 파일**: `.lintstagedrc.mjs` (파일 타입별 실행 도구 정의)
+- `*.{ts,tsx,js,mjs}` → `eslint --fix` → `prettier --write`
+- `*.{json,css,md}` → `prettier --write`
+
+## 코드 스타일 (Prettier)
+
+- **설정 파일**: `.prettierrc`
+- 세미콜론: 사용, 따옴표: 쌍따옴표, 들여쓰기: 2칸, 줄 길이: 80
+- **prettier-plugin-tailwindcss**: Tailwind 클래스 자동 정렬 포함
 
 ## MCP 서버 설정
 

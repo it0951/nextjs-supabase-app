@@ -69,7 +69,7 @@ export const passwordSchema = z
   .min(8, "비밀번호는 최소 8자 이상이어야 합니다")
   .regex(
     /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/,
-    "비밀번호는 대문자, 소문자, 숫자, 특수문자를 포함해야 합니다",
+    "비밀번호는 대문자, 소문자, 숫자, 특수문자를 포함해야 합니다"
   );
 
 // 로그인 폼 스키마
@@ -174,7 +174,7 @@ async function sendWelcomeEmail(email: string, name: string) {
 // 🚀 서버 액션 with 타입 안전성
 export async function loginAction(
   prevState: ActionResult,
-  formData: FormData,
+  formData: FormData
 ): Promise<ActionResult> {
   try {
     // 🚀 필수: 서버 사이드 스키마 검증
@@ -240,7 +240,7 @@ export async function loginWithRedirect(formData: FormData) {
 // 🚀 회원가입 액션
 export async function registerAction(
   prevState: ActionResult,
-  formData: FormData,
+  formData: FormData
 ): Promise<ActionResult> {
   try {
     const validatedFields = registerSchema.safeParse({
@@ -1335,7 +1335,7 @@ const rateLimitMap = new Map<string, { count: number; lastReset: number }>();
 export async function checkRateLimit(
   identifier: string,
   limit = 5,
-  window = 60000,
+  window = 60000
 ) {
   const now = Date.now();
   const record = rateLimitMap.get(identifier);

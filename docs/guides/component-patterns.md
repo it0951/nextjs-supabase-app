@@ -22,7 +22,7 @@ export function UserStatus({ isOnline }) {
     <div
       className={cn(
         "h-3 w-3 rounded-full",
-        isOnline ? "bg-green-500" : "bg-gray-400",
+        isOnline ? "bg-green-500" : "bg-gray-400"
       )}
     />
   );
@@ -264,7 +264,7 @@ interface DataFetcherProps<T> {
   children: (
     data: T | null,
     loading: boolean,
-    error: Error | null,
+    error: Error | null
   ) => React.ReactNode;
 }
 
@@ -320,7 +320,7 @@ const cardVariants = cva(
       variant: "default",
       size: "md",
     },
-  },
+  }
 );
 
 interface CardProps extends VariantProps<typeof cardVariants> {
@@ -436,7 +436,7 @@ export const ExpensiveComponent = memo(function ExpensiveComponent({
     (id: string) => {
       onUpdate(id);
     },
-    [onUpdate],
+    [onUpdate]
   );
 
   return (
@@ -534,7 +534,7 @@ export function Select<T>({
       value={value ? getValue(value) : ""}
       onChange={(e) => {
         const selectedValue = options.find(
-          (option) => getValue(option) === e.target.value,
+          (option) => getValue(option) === e.target.value
         );
         if (selectedValue) onChange(selectedValue);
       }}
