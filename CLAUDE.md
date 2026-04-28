@@ -192,3 +192,51 @@ import { Button } from "@/components/ui/button";
 - 커밋 메시지: 한국어
 - 변수명/함수명: 영어
 - `any` 타입 사용 금지
+
+## 📱 모바일 퍼스트 개발 원칙
+
+이 프로젝트는 **모바일 퍼스트(Mobile First)** 기준으로 UI/UX를 설계합니다.
+
+### 레이아웃 기준
+
+- **기본 너비**: 375px (모바일 기준 설계, 데스크톱은 중앙 정렬로 대응)
+- **컨테이너**: `max-w-[480px] mx-auto` — 모바일 앱처럼 중앙 정렬
+- **상단 영역**: 고정 헤더 `fixed top-0 h-14` → 콘텐츠에 `pt-14` 필수
+- **하단 영역**: 고정 탭 네비 `fixed bottom-0 h-16` → 콘텐츠에 `pb-20` 필수
+
+### 공통 레이아웃 구조
+
+```tsx
+// 모든 (dashboard) 그룹 페이지 기본 구조
+<div className="relative min-h-screen bg-background">
+  <Header /> {/* fixed top-0 z-50 h-14 */}
+  <main className="px-4 pb-20 pt-14">{children}</main>
+  <BottomTabBar /> {/* fixed bottom-0 z-50 h-16 */}
+</div>
+```
+
+### 공통 레이아웃 컴포넌트
+
+| 컴포넌트       | 경로                                   | 역할                                  |
+| -------------- | -------------------------------------- | ------------------------------------- |
+| `Header`       | `components/layout/header.tsx`         | 고정 상단 헤더 (로고 + 알림 + 프로필) |
+| `BottomTabBar` | `components/layout/bottom-tab-bar.tsx` | 고정 하단 탭 (홈/이벤트/알림/마이)    |
+| `MobileLayout` | `components/layout/mobile-layout.tsx`  | 비로그인 공개 페이지용 래퍼           |
+
+### 터치 UX 규칙
+
+- **터치 타겟**: 최소 `min-h-[44px]` (버튼, 링크, 아이템 행)
+- **폰트 크기**: 본문 `text-base(16px)`, 서브 `text-sm(14px)`, 캡션 `text-xs(12px)`
+- **간격**: 섹션 간 `gap-4 ~ gap-6`, 카드 간 `gap-3`, 가로 패딩 `px-4`
+- **버튼**: 하단 고정 액션은 `w-full h-12`, 인라인 버튼은 `h-10` 이상
+
+### 반응형 브레이크포인트 (모바일 퍼스트)
+
+| 브레이크포인트 | 너비    | 용도                        |
+| -------------- | ------- | --------------------------- |
+| (기본)         | ~479px  | 모바일 — **주 설계 기준**   |
+| `sm:`          | 480px~  | 대화면 모바일 / 소형 태블릿 |
+| `md:`          | 768px~  | 태블릿                      |
+| `lg:`          | 1024px~ | 데스크톱 (보조)             |
+
+> **규칙**: 모바일 레이아웃을 먼저 완성한 뒤 `sm:` 이상 클래스를 추가합니다.
