@@ -20,9 +20,9 @@ interface TabItem {
 const TAB_ITEMS: TabItem[] = [
   {
     label: "홈",
-    href: "/dashboard",
+    href: "/",
     icon: Home,
-    matchPath: "/dashboard",
+    matchPath: "/",
   },
   {
     label: "이벤트",
@@ -56,6 +56,7 @@ export function BottomTabBar() {
   const isActive = (tab: TabItem): boolean => {
     if (tab.href === "#") return false;
     const matchPath = tab.matchPath ?? tab.href;
+    if (matchPath === "/") return pathname === "/";
     return pathname.startsWith(matchPath);
   };
 
