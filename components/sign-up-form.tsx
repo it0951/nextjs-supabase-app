@@ -47,13 +47,13 @@ export function SignUpForm({
         password,
       });
       if (error) throw error;
-      // data.session이 null이면 이메일 인증이 활성화되어 있는 상태이므로 에러 처리
-      if (!data.session) {
+      if (!data.user) {
         throw new Error(
           "회원가입 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요."
         );
       }
-      router.push("/dashboard");
+      // 이메일 확인 비활성화 시 즉시 세션 발급, 활성화 시 이메일 확인 안내
+      router.push(data.session ? "/dashboard" : "/auth/sign-up-success");
     } catch (error: unknown) {
       setError(error instanceof Error ? error.message : "An error occurred");
     } finally {

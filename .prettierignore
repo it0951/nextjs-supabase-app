@@ -13,6 +13,7 @@ next-env.d.ts
 
 # 도구 데이터
 shrimp_data/
+.playwright-mcp/
 
 # 기타
 .env
