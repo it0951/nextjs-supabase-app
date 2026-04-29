@@ -41,15 +41,19 @@ export function SignUpForm({
     }
 
     try {
-      const { error } = await supabase.auth.signUp({
+      // 이메일 인증 없이 즉시 가입 처리 (Supabase 대시보드에서 Confirm email 비활성화 필요)
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
-        options: {
-          emailRedirectTo: `${window.location.origin}/auth/confirm?next=/`,
-        },
       });
       if (error) throw error;
-      router.push("/auth/sign-up-success");
+      // data.session이 null이면 이메일 인증이 활성화되어 있는 상태이므로 에러 처리
+      if (!data.session) {
+        throw new Error(
+          "회원가입 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요."
+        );
+      }
+      router.push("/dashboard");
     } catch (error: unknown) {
       setError(error instanceof Error ? error.message : "An error occurred");
     } finally {
