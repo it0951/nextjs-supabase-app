@@ -60,7 +60,7 @@
 | Phase 0   | 프로젝트 기반 설정                      | ✅ 완료 | -         | -              |
 | Phase 1   | 전체 UI/UX 목업 구현 (Mock 데이터)      | ✅ 완료 | 1 ~ 1.5주 | Phase 0 완료   |
 | Phase 1.5 | 관리자 페이지(Admin Panel) UI 구현      | ✅ 완료 | 2 ~ 3일   | Phase 1 완료   |
-| Phase 2   | DB 스키마 확정 및 Supabase 설정         | ⏳ 대기 | 3 ~ 4일   | Phase 1.5 완료 |
+| Phase 2   | DB 스키마 확정 및 Supabase 설정         | ✅ 완료 | 3 ~ 4일   | Phase 1.5 완료 |
 | Phase 3   | 데이터 연동 - 주최자 기능               | ⏳ 대기 | 1주       | Phase 2 완료   |
 | Phase 4   | 데이터 연동 - 참여자 / 카풀 / 정산 기능 | ⏳ 대기 | 1주       | Phase 3 완료   |
 | Phase 5   | 테스트 & 배포                           | ⏳ 대기 | 3 ~ 4일   | Phase 4 완료   |
@@ -201,7 +201,7 @@
 
 ---
 
-## Phase 2: DB 스키마 확정 및 Supabase 설정 ⏳
+## Phase 2: DB 스키마 확정 및 Supabase 설정 ✅
 
 > Phase 1에서 검증된 UI를 바탕으로 DB 스키마를 최종 확정하고 Supabase 마이그레이션을 적용합니다.
 
@@ -216,16 +216,16 @@
 
 | Task ID  | 작업 내용                                                                                          | 상태    | 관련 기능 ID     |
 | -------- | -------------------------------------------------------------------------------------------------- | ------- | ---------------- |
-| TASK-030 | Phase 1 UI 검토 결과를 반영한 ERD 및 스키마 최종 확정 문서 작성                                    | ⏳ 대기 | -                |
-| TASK-031 | Supabase CLI 초기화 및 로컬/원격 프로젝트 연결                                                     | ⏳ 대기 | -                |
-| TASK-032 | `events` 테이블 마이그레이션 작성 (id, owner_id, title, date, location, description, invite_token) | ⏳ 대기 | F001, F002       |
-| TASK-033 | `participants` 테이블 마이그레이션 작성 (id, event_id, name, phone, status, join_token)            | ⏳ 대기 | F004, F005, F012 |
-| TASK-034 | `announcements` 테이블 마이그레이션 작성 (id, event_id, title, content, created_at)                | ⏳ 대기 | F003             |
-| TASK-035 | `carpool_groups` 및 `carpool_assignments` 테이블 마이그레이션 작성                                 | ⏳ 대기 | F006             |
-| TASK-036 | `expense_items` 및 `expense_splits` 테이블 마이그레이션 작성                                       | ⏳ 대기 | F007             |
-| TASK-037 | RLS 정책 설정 (주최자만 자신의 이벤트 수정, 비회원은 토큰 기반 읽기/쓰기)                          | ⏳ 대기 | F010, F012       |
-| TASK-038 | `npx supabase gen types typescript --linked > types/supabase.ts`로 타입 자동 생성                  | ⏳ 대기 | -                |
-| TASK-039 | Supabase 시드 데이터 작성 (개발/테스트용 더미 이벤트)                                              | ⏳ 대기 | -                |
+| TASK-030 | Phase 1 UI 검토 결과를 반영한 ERD 및 스키마 최종 확정 문서 작성                                    | ✅ 완료 | -                |
+| TASK-031 | Supabase CLI 초기화 및 로컬/원격 프로젝트 연결                                                     | ✅ 완료 | -                |
+| TASK-032 | `events` 테이블 마이그레이션 작성 (id, owner_id, title, date, location, description, invite_token) | ✅ 완료 | F001, F002       |
+| TASK-033 | `participants` 테이블 마이그레이션 작성 (id, event_id, name, phone, status, join_token)            | ✅ 완료 | F004, F005, F012 |
+| TASK-034 | `announcements` 테이블 마이그레이션 작성 (id, event_id, title, content, created_at)                | ✅ 완료 | F003             |
+| TASK-035 | `carpool_groups` 및 `carpool_assignments` 테이블 마이그레이션 작성                                 | ✅ 완료 | F006             |
+| TASK-036 | `expense_items` 및 `expense_splits` 테이블 마이그레이션 작성                                       | ✅ 완료 | F007             |
+| TASK-037 | RLS 정책 설정 (주최자만 자신의 이벤트 수정, 비회원은 토큰 기반 읽기/쓰기)                          | ✅ 완료 | F010, F012       |
+| TASK-038 | `npx supabase gen types typescript --linked > types/supabase.ts`로 타입 자동 생성                  | ✅ 완료 | -                |
+| TASK-039 | Supabase 시드 데이터 작성 (개발/테스트용 더미 이벤트)                                              | ✅ 완료 | -                |
 
 ### 테스트 체크리스트
 
