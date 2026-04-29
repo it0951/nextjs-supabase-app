@@ -61,6 +61,19 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  // /admin/* 경로: 관리자 역할 검증 (비관리자는 /dashboard로 리다이렉트)
+  if (request.nextUrl.pathname.startsWith("/admin") && user) {
+    const role = user.user_metadata?.role as string | undefined;
+    const ADMIN_EMAILS = ["cheonsik.park@gsitm.com"];
+    const userEmail = user.email as string | undefined;
+    const isAdmin = role === "admin" || ADMIN_EMAILS.includes(userEmail ?? "");
+    if (!isAdmin) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/dashboard";
+      return NextResponse.redirect(url);
+    }
+  }
+
   // IMPORTANT: You *must* return the supabaseResponse object as it is.
   // If you're creating a new response object with NextResponse.next() make sure to:
   // 1. Pass the request in it, like so:
