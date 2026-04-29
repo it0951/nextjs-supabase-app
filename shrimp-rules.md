@@ -358,3 +358,34 @@ Client Component → @supabase/ssr의 onAuthStateChange 또는 세션 확인
 npm run check-all   # 타입체크 + ESLint + Prettier 통합 검사
 npm run build       # 빌드 성공 확인
 ```
+
+---
+
+## Task Status Management Rules
+
+### 작업 수명주기
+
+모든 작업은 `shrimp_data/tasks.json`의 `status` 필드로 상태를 추적한다.
+
+| 상태          | 의미    | 전환 시점                |
+| ------------- | ------- | ------------------------ |
+| `pending`     | 대기 중 | 초기 생성 상태           |
+| `in_progress` | 진행 중 | 작업 시작 직후 즉시 전환 |
+| `completed`   | 완료    | 구현 + 검증 완료 후 전환 |
+
+### 필수 상태 업데이트 절차
+
+**작업 시작 시:**
+
+- `mcp__shrimp-task-manager__execute_task` 호출 → `status: in_progress`, `updatedAt` 갱신
+
+**작업 완료 시** (`npm run check-all` 통과 후):
+
+1. `mcp__shrimp-task-manager__verify_task` 호출 → `status: completed`, `updatedAt` 갱신
+2. `docs/ROADMAP.md` 해당 Task 행 → `✅ 완료` 표시
+
+### 금지 사항
+
+- 검증(`npm run check-all`) 없이 `completed` 처리
+- MCP 도구를 거치지 않고 `shrimp_data/tasks.json` 직접 수동 편집
+- 작업 시작·완료 선언 없이 구현만 진행

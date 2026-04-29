@@ -44,6 +44,16 @@ npm run check-all   # 타입체크 + ESLint + Prettier 통합 검사
 npm run build       # 빌드 성공 확인
 ```
 
+### Task 상태 동기화 (필수)
+
+코드 작업이 완료될 때마다 반드시 순서대로 처리:
+
+1. `mcp__shrimp-task-manager__verify_task` 호출
+   → `shrimp_data/tasks.json` status `completed` 전환 + `updatedAt` 현재 시간 갱신
+2. `docs/ROADMAP.md` 해당 Task 행 → `✅ 완료` 표시
+
+> 작업 **시작 시**에는 `mcp__shrimp-task-manager__execute_task`를 먼저 호출하여 status를 `in_progress`로 전환한다.
+
 ## ⚡ UI 컴포넌트 추가
 
 ```bash
@@ -76,6 +86,7 @@ npx shadcn@latest add [component-name]    # 새 컴포넌트 추가
 - **보호된 라우트**: `/protected` 경로는 인증된 사용자만 접근 가능
 - **공개 경로**: `/auth/*` (login, sign-up, forgot-password 등)는 미들웨어에서 제외
 - **인증 확인 라우트**: `/auth/confirm/route.ts`에서 이메일 확인 처리
+- **관리자 경로**: `/admin/*`는 로그인 사용자 중 `user_metadata.role === "admin"` 또는 `MOCK_ADMIN_EMAILS` 목록에 포함된 경우만 접근 가능. 비관리자는 `/dashboard`로 리다이렉트
 
 ### 환경 변수
 
@@ -215,13 +226,28 @@ import { Button } from "@/components/ui/button";
 </div>
 ```
 
+```tsx
+// 모든 (admin) 그룹 페이지 기본 구조 — 컨테이너 max-w-[1200px]
+<AdminLayout>
+  <AdminHeader /> {/* fixed top-0 z-50 h-14 */}
+  <AdminSidebar /> {/* fixed left-0 top-14 w-56 — md: 이상만 표시 */}
+  <main className="px-4 pb-8 pt-14 md:pl-56">
+    <div className="mx-auto max-w-[1200px]">{children}</div>
+  </main>
+</AdminLayout>
+```
+
 ### 공통 레이아웃 컴포넌트
 
-| 컴포넌트       | 경로                                   | 역할                                  |
-| -------------- | -------------------------------------- | ------------------------------------- |
-| `Header`       | `components/layout/header.tsx`         | 고정 상단 헤더 (로고 + 알림 + 프로필) |
-| `BottomTabBar` | `components/layout/bottom-tab-bar.tsx` | 고정 하단 탭 (홈/이벤트/알림/마이)    |
-| `MobileLayout` | `components/layout/mobile-layout.tsx`  | 비로그인 공개 페이지용 래퍼           |
+| 컴포넌트         | 경로                                    | 역할                                        |
+| ---------------- | --------------------------------------- | ------------------------------------------- |
+| `Header`         | `components/layout/header.tsx`          | 고정 상단 헤더 (로고 + 알림 + 프로필)       |
+| `BottomTabBar`   | `components/layout/bottom-tab-bar.tsx`  | 고정 하단 탭 (홈/이벤트/알림/마이)          |
+| `MobileLayout`   | `components/layout/mobile-layout.tsx`   | 비로그인 공개 페이지용 래퍼                 |
+| `AdminLayout`    | `components/admin/admin-layout.tsx`     | 관리자 전용 레이아웃 (헤더 + 사이드바)      |
+| `AdminHeader`    | `components/admin/admin-header.tsx`     | 관리자 상단 헤더 (햄버거 + 로고 + 유저메뉴) |
+| `AdminSidebar`   | `components/admin/admin-sidebar.tsx`    | 데스크톱 고정 사이드바 (w-56, md: 이상)     |
+| `AdminMobileNav` | `components/admin/admin-mobile-nav.tsx` | 모바일 Sheet 슬라이드 사이드바              |
 
 ### 터치 UX 규칙
 

@@ -22,18 +22,34 @@ claude-nextjs-starters/
 
 ## 📁 세부 폴더 구조
 
-### src/app/ - App Router 페이지
+### app/ - App Router 페이지 (실제 프로젝트 구조)
 
 ```
-src/app/
-├── layout.tsx           # 🎨 루트 레이아웃 (전역 설정)
-├── page.tsx            # 🏠 홈페이지 (/)
-├── globals.css         # 🎨 전역 CSS 스타일
-├── favicon.ico         # 🔖 파비콘
-├── login/              # 🔐 로그인 페이지
-│   └── page.tsx
-└── signup/             # ✍️ 회원가입 페이지
-    └── page.tsx
+app/
+├── layout.tsx                    # 🎨 루트 레이아웃 (전역 설정, Toaster 포함)
+├── page.tsx                      # 🏠 홈페이지 (/)
+├── globals.css                   # 🎨 전역 CSS 스타일
+├── (dashboard)/                  # 🔐 주최자 보호 라우트 그룹
+│   ├── layout.tsx                #   Suspense + 인증 검증 + DashboardLayout
+│   ├── dashboard/page.tsx        #   이벤트 카드 목록 (F011)
+│   └── events/
+│       ├── new/page.tsx          #   이벤트 생성 폼 (F001)
+│       └── [eventId]/page.tsx    #   이벤트 관리 탭 (F001~F007)
+├── (admin)/                      # 🛡️ 관리자 전용 라우트 그룹
+│   ├── layout.tsx                #   Suspense + 인증/역할 검증 + AdminLayout
+│   └── admin/
+│       ├── page.tsx              #   /admin → /admin/dashboard redirect
+│       ├── dashboard/page.tsx    #   전체 통계 (F020)
+│       ├── users/page.tsx        #   사용자 관리 (F021)
+│       ├── events/page.tsx       #   전체 이벤트 관리 (F022)
+│       └── settings/page.tsx     #   시스템 설정 (F023)
+├── auth/                         # 🔑 인증 공개 라우트
+│   ├── login/page.tsx
+│   ├── sign-up/page.tsx
+│   ├── callback/route.ts
+│   └── confirm/route.ts
+├── invite/[inviteToken]/page.tsx # 📩 비회원 초대 (F004)
+└── join/[joinToken]/page.tsx     # 👤 비회원 참여자 뷰 (F012)
 ```
 
 **🚀 App Router 규칙:**
@@ -44,32 +60,34 @@ src/app/
 - `error.tsx`: 에러 UI (필요시)
 - `not-found.tsx`: 404 페이지 (필요시)
 
-### src/components/ - 컴포넌트 조직
+### components/ - 컴포넌트 조직 (실제 프로젝트 구조)
 
 ```
-src/components/
-├── ui/                 # 🎛️ 기본 UI 컴포넌트 (shadcn/ui)
-│   ├── button.tsx     # 버튼
-│   ├── card.tsx       # 카드
-│   ├── form.tsx       # 폼 관련
-│   ├── input.tsx      # 입력 필드
-│   └── ...           # 기타 UI 컴포넌트
-├── layout/            # 🏗️ 레이아웃 컴포넌트
-│   ├── container.tsx  # 컨테이너 래퍼
-│   ├── header.tsx     # 헤더
-│   └── footer.tsx     # 푸터
-├── navigation/        # 🧭 네비게이션 컴포넌트
-│   ├── main-nav.tsx   # 메인 네비게이션
-│   └── mobile-nav.tsx # 모바일 네비게이션
-├── sections/          # 📄 페이지 섹션 컴포넌트
-│   ├── hero.tsx       # 히어로 섹션
-│   ├── features.tsx   # 기능 소개
-│   └── cta.tsx        # Call-to-Action
-├── providers/         # 🔧 Context 프로바이더
-│   └── theme-provider.tsx
-├── login-form.tsx     # 🔐 로그인 폼
-├── signup-form.tsx    # ✍️ 회원가입 폼
-└── theme-toggle.tsx   # 🌓 테마 토글
+components/
+├── ui/                          # 🎛️ 기본 UI 컴포넌트 (shadcn/ui)
+│   ├── button.tsx, card.tsx ... # shadcn/ui 설치 컴포넌트
+│   ├── empty-state.tsx          # 빈 상태 컴포넌트
+│   └── loading-skeleton.tsx     # 스켈레톤 로딩 컴포넌트
+├── layout/                      # 🏗️ 주최자 대시보드 레이아웃
+│   ├── dashboard-layout.tsx     # DashboardLayout wrapper
+│   ├── header.tsx               # 고정 상단 헤더 (h-14)
+│   ├── bottom-tab-bar.tsx       # 고정 하단 탭 (h-16)
+│   └── mobile-layout.tsx        # 비로그인 공개 페이지용 래퍼
+├── admin/                       # 🛡️ 관리자 전용 컴포넌트
+│   ├── admin-layout.tsx         # AdminLayout wrapper
+│   ├── admin-header.tsx         # 관리자 헤더 (햄버거 + 로고 + 유저메뉴)
+│   ├── admin-sidebar.tsx        # 데스크톱 고정 사이드바 (w-56)
+│   ├── admin-mobile-nav.tsx     # 모바일 Sheet 슬라이드 사이드바
+│   ├── dashboard/
+│   │   ├── stats-card.tsx       # 통계 카드
+│   │   └── stats-grid.tsx       # 통계 카드 그리드
+│   ├── users/
+│   │   ├── users-table.tsx      # 사용자 목록 테이블
+│   │   └── role-badge.tsx       # 역할 Badge (admin/user)
+│   └── events/
+│       ├── admin-events-table.tsx    # 전체 이벤트 테이블
+│       └── delete-event-dialog.tsx   # 이벤트 삭제 확인 AlertDialog
+└── (기타 도메인별 컴포넌트)
 ```
 
 **🧩 컴포넌트 분류 규칙:**
@@ -99,33 +117,19 @@ src/components/
    - 테마 관리
    - 인증 상태
 
-### src/lib/ - 유틸리티 및 설정
+### lib/ - 유틸리티 및 설정 (실제 프로젝트 구조)
 
 ```
-src/lib/
-├── utils.ts           # 🛠️ 공통 유틸리티 함수
-└── env.ts             # 🔧 환경변수 검증
-```
-
-**📚 lib/ 폴더 확장 가이드:**
-
-```
-src/lib/
-├── utils.ts           # 공통 유틸리티
-├── env.ts             # 환경변수 검증
-├── constants.ts       # 상수 정의
-├── types/             # TypeScript 타입 정의
-│   ├── auth.ts
-│   └── api.ts
-├── hooks/             # 커스텀 훅
-│   ├── use-local-storage.ts
-│   └── use-api.ts
-├── schemas/           # Zod 스키마
-│   ├── auth.ts
-│   └── user.ts
-└── api/               # API 관련 유틸리티
-    ├── client.ts
-    └── endpoints.ts
+lib/
+├── utils.ts              # 🛠️ 공통 유틸리티 함수 (cn 등)
+├── supabase/
+│   ├── server.ts         # Server Components용 Supabase 클라이언트
+│   ├── client.ts         # Client Components용 Supabase 클라이언트
+│   └── proxy.ts          # Middleware 세션 갱신 + 역할 기반 접근 제어
+└── mock/
+    ├── types.ts           # Mock 도메인 타입 (Event, Participant 등 7개)
+    ├── data.ts            # Mock 더미 데이터 (이벤트 3개, 참여자 16명 등)
+    └── admin-data.ts      # 관리자 Mock 타입 + 더미 데이터 + isMockAdmin 헬퍼
 ```
 
 ## 🏷️ 파일 네이밍 컨벤션
