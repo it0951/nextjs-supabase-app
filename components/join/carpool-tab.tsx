@@ -1,29 +1,41 @@
 import { Car } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { mockCarpoolGroups, mockParticipants } from "@/lib/mock/data";
+import type { Tables } from "@/types/supabase";
+
+type CarpoolGroup = Tables<"carpool_groups"> & {
+  carpool_assignments: Tables<"carpool_assignments">[];
+};
 
 interface CarpoolTabProps {
-  participantId: string;
-  eventId: string;
+  /** 서버에서 조회한 카풀 그룹 목록 (carpool_assignments 포함) */
+  carpoolGroups: CarpoolGroup[];
+  /** 현재 참여자 ID */
+  myParticipantId: string;
+  /** 참여자 이름 매핑 (id → name) */
+  participantNameMap: Record<string, string>;
 }
 
 /**
- * 카풀 탭 - 읽기 전용
+ * 카풀 탭 - 읽기 전용 (참여자 뷰)
  * 해당 참여자가 배정된 카풀 그룹 정보를 표시합니다.
  */
-export function CarpoolTab({ participantId, eventId }: CarpoolTabProps) {
-  // 해당 이벤트 카풀 그룹 중 현재 참여자가 속한 그룹 조회
-  // (드라이버이거나 동승자인 경우 모두 포함)
-  const carpoolGroup = mockCarpoolGroups.find(
+export function CarpoolTab({
+  carpoolGroups,
+  myParticipantId,
+  participantNameMap,
+}: CarpoolTabProps) {
+  // 현재 참여자가 속한 카풀 그룹 조회
+  const myCarpoolGroup = carpoolGroups.find(
     (group) =>
-      group.eventId === eventId &&
-      (group.driverParticipantId === participantId ||
-        group.memberIds.includes(participantId))
+      group.driver_participant_id === myParticipantId ||
+      group.carpool_assignments.some(
+        (a) => a.participant_id === myParticipantId
+      )
   );
 
   // 카풀 미배정 상태 처리
-  if (!carpoolGroup) {
+  if (!myCarpoolGroup) {
     return (
       <Card>
         <CardContent className="py-8 text-center">
@@ -39,18 +51,16 @@ export function CarpoolTab({ participantId, eventId }: CarpoolTabProps) {
     );
   }
 
-  // 드라이버 정보 조회
-  const driver = mockParticipants.find(
-    (p) => p.id === carpoolGroup.driverParticipantId
-  );
+  // 드라이버 이름 조회
+  const driverName =
+    participantNameMap[myCarpoolGroup.driver_participant_id] ?? "알 수 없음";
+  const isDriver = myCarpoolGroup.driver_participant_id === myParticipantId;
 
-  // 동승자 정보 조회
-  const members = carpoolGroup.memberIds
-    .map((id) => mockParticipants.find((p) => p.id === id))
-    .filter((p): p is NonNullable<typeof p> => p !== undefined);
+  // 동승자 목록
+  const assignments = myCarpoolGroup.carpool_assignments;
 
-  // 현재 탑승 인원 (드라이버 포함)
-  const currentOccupancy = 1 + carpoolGroup.memberIds.length;
+  // 현재 탑승 인원 (드라이버 + 동승자)
+  const currentOccupancy = 1 + assignments.length;
 
   return (
     <Card>
@@ -62,60 +72,56 @@ export function CarpoolTab({ participantId, eventId }: CarpoolTabProps) {
         <div className="flex items-center justify-between text-xs text-muted-foreground">
           <span>좌석 현황</span>
           <span className="font-medium text-foreground">
-            {currentOccupancy}/{carpoolGroup.seats}석
+            {currentOccupancy}/{myCarpoolGroup.capacity}석
           </span>
         </div>
 
         {/* 드라이버 */}
-        {driver && (
-          <div className="flex items-center justify-between rounded-lg bg-muted/50 px-3 py-2.5">
-            <span
-              className={`text-sm ${
-                driver.id === participantId ? "font-semibold" : ""
-              }`}
-            >
-              {driver.name}
-              {driver.id === participantId && (
-                <span className="ml-1 text-xs text-primary">(나)</span>
-              )}
-            </span>
-            <Badge
-              variant="secondary"
-              className="bg-blue-100 text-blue-700 hover:bg-blue-100"
-            >
-              드라이버
-            </Badge>
-          </div>
-        )}
+        <div className="flex items-center justify-between rounded-lg bg-muted/50 px-3 py-2.5">
+          <span className={`text-sm ${isDriver ? "font-semibold" : ""}`}>
+            {driverName}
+            {isDriver && (
+              <span className="ml-1 text-xs text-primary">(나)</span>
+            )}
+          </span>
+          <Badge
+            variant="secondary"
+            className="bg-blue-100 text-blue-700 hover:bg-blue-100"
+          >
+            드라이버
+          </Badge>
+        </div>
 
         {/* 동승자 목록 */}
-        {members.length > 0 && (
+        {assignments.length > 0 && (
           <div className="space-y-2">
             <p className="text-xs font-medium text-muted-foreground">동승자</p>
             <div className="space-y-1.5">
-              {members.map((member) => (
-                <div
-                  key={member.id}
-                  className="flex items-center rounded-lg px-3 py-2 hover:bg-muted/30"
-                >
-                  <span
-                    className={`text-sm ${
-                      member.id === participantId ? "font-semibold" : ""
-                    }`}
+              {assignments.map((assignment) => {
+                const memberName =
+                  participantNameMap[assignment.participant_id] ?? "알 수 없음";
+                const isMe = assignment.participant_id === myParticipantId;
+
+                return (
+                  <div
+                    key={assignment.id}
+                    className="flex items-center rounded-lg px-3 py-2 hover:bg-muted/30"
                   >
-                    {member.name}
-                    {member.id === participantId && (
-                      <span className="ml-1 text-xs text-primary">(나)</span>
-                    )}
-                  </span>
-                </div>
-              ))}
+                    <span className={`text-sm ${isMe ? "font-semibold" : ""}`}>
+                      {memberName}
+                      {isMe && (
+                        <span className="ml-1 text-xs text-primary">(나)</span>
+                      )}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}
 
         {/* 동승자가 없는 경우 */}
-        {members.length === 0 && (
+        {assignments.length === 0 && (
           <p className="text-xs text-muted-foreground">
             아직 동승자가 없습니다.
           </p>

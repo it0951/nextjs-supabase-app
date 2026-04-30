@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
+import { useRouter } from "next/navigation";
 import { Receipt } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -29,18 +30,23 @@ import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
-  mockExpenseItems,
-  mockExpenseSplits,
-  mockParticipants,
-} from "@/lib/mock/data";
-import { type ExpenseItem, type ExpenseSplit } from "@/lib/mock/types";
+  createExpenseItemAction,
+  deleteExpenseItemAction,
+} from "@/lib/actions/expenses";
+import { toggleExpenseSplitPaidAction } from "@/lib/actions/expense-splits";
+import type { Tables } from "@/types/supabase";
 
 // ─────────────────────────────────────────
-// 정산 항목 추가 폼 스키마 (zod v4)
+// DB 타입 정의
 // ─────────────────────────────────────────
-// 폼 값은 string으로 받아서 제출 시 수동 변환
+type ExpenseItem = Tables<"expense_items">;
+type ExpenseSplit = Tables<"expense_splits">;
+
+// ─────────────────────────────────────────
+// 정산 항목 추가 폼 스키마
+// ─────────────────────────────────────────
 const addExpenseSchema = z.object({
-  name: z.string().min(1, "항목명을 입력해주세요."),
+  title: z.string().min(1, "항목명을 입력해주세요."),
   amount: z
     .string()
     .min(1, "금액을 입력해주세요.")
@@ -56,6 +62,14 @@ type AddExpenseFormValues = z.infer<typeof addExpenseSchema>;
 interface ExpenseTabProps {
   /** 이벤트 ID */
   eventId: string;
+  /** 서버에서 조회한 정산 항목 목록 */
+  initialExpenseItems: ExpenseItem[];
+  /** 서버에서 조회한 정산 분배 목록 */
+  initialExpenseSplits: ExpenseSplit[];
+  /** 확정 참여자 수 */
+  confirmedCount: number;
+  /** 참여자 ID → 이름 매핑 (납부 목록 이름 표시용) */
+  participantNameMap?: Record<string, string>;
 }
 
 /**
@@ -66,97 +80,96 @@ function formatKRW(amount: number): string {
 }
 
 /**
- * 정산 탭 컴포넌트
+ * 정산 탭 컴포넌트 (Supabase 연동)
  * - 전체 정산 현황 요약 카드
  * - 정산 항목 카드 목록 (납부 여부 체크박스)
  * - 항목 추가 다이얼로그 (react-hook-form + zod)
  */
-export function ExpenseTab({ eventId }: ExpenseTabProps) {
-  // 해당 이벤트의 확정된 참여자 목록
-  const confirmedParticipants = mockParticipants.filter(
-    (p) => p.eventId === eventId && p.status === "confirmed"
-  );
-  const confirmedCount = confirmedParticipants.length;
-
-  // 정산 항목 로컬 상태
-  const [expenseItems, setExpenseItems] = useState<ExpenseItem[]>(
-    mockExpenseItems.filter((item) => item.eventId === eventId)
-  );
-
-  // 정산 분배(납부 여부) 로컬 상태
-  const [expenseSplits, setExpenseSplits] = useState<ExpenseSplit[]>(
-    mockExpenseSplits.filter((split) =>
-      mockExpenseItems
-        .filter((item) => item.eventId === eventId)
-        .map((item) => item.id)
-        .includes(split.expenseItemId)
-    )
-  );
+export function ExpenseTab({
+  eventId,
+  initialExpenseItems,
+  initialExpenseSplits,
+  confirmedCount,
+  participantNameMap = {},
+}: ExpenseTabProps) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
 
   // 항목 추가 다이얼로그 상태
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // 항목 추가 폼
   const form = useForm<AddExpenseFormValues>({
     resolver: zodResolver(addExpenseSchema),
-    defaultValues: { name: "", amount: "" },
+    defaultValues: { title: "", amount: "" },
   });
 
   // 특정 정산 항목의 분배 목록 조회
   const getSplitsForItem = (itemId: string): ExpenseSplit[] => {
-    return expenseSplits.filter((s) => s.expenseItemId === itemId);
+    return initialExpenseSplits.filter((s) => s.item_id === itemId);
   };
 
-  // 참여자 이름 조회 헬퍼
-  const getParticipantName = (participantId: string): string => {
-    return (
-      confirmedParticipants.find((p) => p.id === participantId)?.name ??
-      "알 수 없음"
+  // 납부 여부 토글 핸들러 (주최자용)
+  const handleTogglePaid = async (split: ExpenseSplit) => {
+    const result = await toggleExpenseSplitPaidAction(
+      split.id,
+      eventId,
+      !split.is_paid
     );
+    if (result.success) {
+      startTransition(() => router.refresh());
+    } else {
+      toast.error(result.error);
+    }
   };
 
-  // 납부 여부 토글 핸들러
-  const handleTogglePaid = (splitId: string, checked: boolean) => {
-    setExpenseSplits((prev) =>
-      prev.map((s) => (s.id === splitId ? { ...s, isPaid: checked } : s))
-    );
+  // 항목 삭제 핸들러
+  const handleDeleteItem = async (itemId: string) => {
+    const result = await deleteExpenseItemAction(itemId, eventId);
+    if (result.success) {
+      toast.success("정산 항목이 삭제되었습니다.");
+      startTransition(() => router.refresh());
+    } else {
+      toast.error(result.error);
+    }
   };
 
   // 전체 현황 요약 계산
-  const totalAmount = expenseItems.reduce((sum, item) => sum + item.amount, 0);
-  const paidAmount = expenseSplits
-    .filter((s) => s.isPaid)
+  const totalAmount = initialExpenseItems.reduce(
+    (sum, item) => sum + item.amount,
+    0
+  );
+  const paidAmount = initialExpenseSplits
+    .filter((s) => s.is_paid)
     .reduce((sum, s) => sum + s.amount, 0);
   const unpaidAmount = totalAmount - paidAmount;
 
   // 항목 추가 제출 핸들러
-  const handleAddExpense = (values: AddExpenseFormValues) => {
-    // amount는 string으로 받으므로 숫자로 변환
-    const amountNumber = Number(values.amount);
-    const newItem: ExpenseItem = {
-      id: crypto.randomUUID(),
-      eventId,
-      name: values.name,
-      amount: amountNumber,
-    };
-    setExpenseItems((prev) => [...prev, newItem]);
+  const handleAddExpense = async (values: AddExpenseFormValues) => {
+    setIsSubmitting(true);
+    try {
+      const formData = new FormData();
+      formData.set("title", values.title);
+      formData.set("amount", values.amount);
 
-    // 확정 참여자들에 대한 ExpenseSplit 자동 생성
-    if (confirmedCount > 0) {
-      const splitAmount = Math.ceil(amountNumber / confirmedCount);
-      const newSplits: ExpenseSplit[] = confirmedParticipants.map((p) => ({
-        id: crypto.randomUUID(),
-        expenseItemId: newItem.id,
-        participantId: p.id,
-        amount: splitAmount,
-        isPaid: false,
-      }));
-      setExpenseSplits((prev) => [...prev, ...newSplits]);
+      const result = await createExpenseItemAction(
+        eventId,
+        { success: false, error: "" },
+        formData
+      );
+
+      if (result.success) {
+        toast.success("정산 항목이 추가되었습니다.");
+        setIsAddDialogOpen(false);
+        form.reset();
+        startTransition(() => router.refresh());
+      } else {
+        toast.error(result.error);
+      }
+    } finally {
+      setIsSubmitting(false);
     }
-
-    toast.success("정산 항목이 추가되었습니다.");
-    setIsAddDialogOpen(false);
-    form.reset();
   };
 
   return (
@@ -194,15 +207,19 @@ export function ExpenseTab({ eventId }: ExpenseTabProps) {
       {/* 탭 상단: 통계 + 항목 추가 버튼 */}
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">
-          총 {expenseItems.length}개 항목
+          총 {initialExpenseItems.length}개 항목
         </p>
-        <Button size="sm" onClick={() => setIsAddDialogOpen(true)}>
+        <Button
+          size="sm"
+          onClick={() => setIsAddDialogOpen(true)}
+          disabled={isPending}
+        >
           항목 추가
         </Button>
       </div>
 
       {/* 정산 항목 목록 */}
-      {expenseItems.length === 0 ? (
+      {initialExpenseItems.length === 0 ? (
         <EmptyState
           icon={<Receipt className="h-full w-full" />}
           title="아직 정산 항목이 없습니다"
@@ -210,13 +227,13 @@ export function ExpenseTab({ eventId }: ExpenseTabProps) {
         />
       ) : (
         <div className="space-y-3">
-          {expenseItems.map((item) => {
+          {initialExpenseItems.map((item) => {
             const splits = getSplitsForItem(item.id);
             // 1인당 균등 분담금
             const perPersonAmount =
               confirmedCount > 0 ? Math.ceil(item.amount / confirmedCount) : 0;
             // 납부/미납부 수 계산
-            const paidCount = splits.filter((s) => s.isPaid).length;
+            const paidCount = splits.filter((s) => s.is_paid).length;
             const totalSplitCount = splits.length;
 
             return (
@@ -224,17 +241,29 @@ export function ExpenseTab({ eventId }: ExpenseTabProps) {
                 <CardHeader className="pb-2">
                   <div className="flex items-start justify-between gap-2">
                     <CardTitle className="text-sm font-semibold">
-                      {item.name}
+                      {item.title}
                     </CardTitle>
-                    <div className="text-right">
-                      <p className="text-sm font-bold">
-                        {formatKRW(item.amount)}원
-                      </p>
-                      {confirmedCount > 0 && (
-                        <p className="text-xs text-muted-foreground">
-                          1인 {formatKRW(perPersonAmount)}원
+                    <div className="flex items-start gap-2">
+                      <div className="text-right">
+                        <p className="text-sm font-bold">
+                          {formatKRW(item.amount)}원
                         </p>
-                      )}
+                        {confirmedCount > 0 && (
+                          <p className="text-xs text-muted-foreground">
+                            1인 {formatKRW(perPersonAmount)}원
+                          </p>
+                        )}
+                      </div>
+                      {/* 삭제 버튼 */}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 px-2 text-xs text-destructive hover:bg-destructive/10"
+                        onClick={() => handleDeleteItem(item.id)}
+                        disabled={isPending}
+                      >
+                        삭제
+                      </Button>
                     </div>
                   </div>
                   {/* 납부 현황 배지 */}
@@ -258,23 +287,22 @@ export function ExpenseTab({ eventId }: ExpenseTabProps) {
                           <div className="flex items-center gap-2">
                             <Checkbox
                               id={`split-${split.id}`}
-                              checked={split.isPaid}
-                              onCheckedChange={(checked) =>
-                                handleTogglePaid(split.id, checked === true)
-                              }
+                              checked={split.is_paid}
+                              onCheckedChange={() => handleTogglePaid(split)}
                             />
                             <label
                               htmlFor={`split-${split.id}`}
                               className="cursor-pointer text-sm"
                             >
-                              {getParticipantName(split.participantId)}
+                              {participantNameMap[split.participant_id] ??
+                                split.participant_id}
                             </label>
                           </div>
                           <div className="flex items-center gap-2">
                             <span className="text-sm text-muted-foreground">
                               {formatKRW(split.amount)}원
                             </span>
-                            {split.isPaid ? (
+                            {split.is_paid ? (
                               <Badge
                                 variant="secondary"
                                 className="bg-green-100 text-xs text-green-800 hover:bg-green-100"
@@ -315,7 +343,7 @@ export function ExpenseTab({ eventId }: ExpenseTabProps) {
               {/* 항목명 */}
               <FormField
                 control={form.control}
-                name="name"
+                name="title"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>항목명</FormLabel>
@@ -357,7 +385,9 @@ export function ExpenseTab({ eventId }: ExpenseTabProps) {
                 >
                   취소
                 </Button>
-                <Button type="submit">추가</Button>
+                <Button type="submit" disabled={isSubmitting}>
+                  {isSubmitting ? "추가 중..." : "추가"}
+                </Button>
               </DialogFooter>
             </form>
           </Form>

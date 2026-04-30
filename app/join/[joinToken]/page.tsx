@@ -1,22 +1,14 @@
-"use client";
-
-import { useParams } from "next/navigation";
 import { Calendar, MapPin, CalendarDays } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { mockParticipants, mockEvents } from "@/lib/mock/data";
-import {
-  type Event,
-  type Participant,
-  type ParticipantStatus,
-} from "@/lib/mock/types";
+import { createClient } from "@/lib/supabase/server";
 import { AnnouncementTab } from "@/components/join/announcement-tab";
 import { CarpoolTab } from "@/components/join/carpool-tab";
 import { ExpenseTab } from "@/components/join/expense-tab";
+import type { Database } from "@/types/supabase";
 
-// 동적 라우트: useParams() 사용으로 정적 프리렌더 비활성화
-export const dynamic = "force-dynamic";
+type ParticipantStatus = Database["public"]["Enums"]["participant_status"];
 
 /**
  * 참여 상태에 따른 Badge 색상 반환
@@ -45,40 +37,31 @@ function getStatusBadge(status: ParticipantStatus) {
 }
 
 /**
- * 비회원 참여자 뷰 페이지
- * - joinToken으로 참여자 정보 조회
- * - 해당 이벤트 정보 표시
- * - 공지 / 카풀 / 정산 탭 골격 (구현 예정)
+ * 비회원 참여자 뷰 페이지 (async Server Component)
+ * - join_token으로 참여자 조회
+ * - 이벤트/공지/카풀/정산 데이터를 서버에서 패칭하여 탭 컴포넌트에 props 전달
  */
-export default function JoinPage() {
-  const params = useParams();
-  const joinToken = params.joinToken as string;
+export default async function JoinPage({
+  params,
+}: {
+  params: Promise<{ joinToken: string }>;
+}) {
+  // Next.js 16 async params 패턴
+  const { joinToken } = await params;
 
-  // joinToken으로 참여자 조회 (동기 계산)
-  const participant: Participant | null =
-    mockParticipants.find((p) => p.joinToken === joinToken) ?? null;
+  const supabase = await createClient();
 
-  // 참여자의 이벤트 정보 조회
-  const event: Event | null = participant
-    ? (mockEvents.find((e) => e.id === participant.eventId) ?? null)
-    : null;
+  // join_token으로 참여자 조회 (maybeSingle: 없으면 null 반환)
+  const { data: participant } = await supabase
+    .from("participants")
+    .select("*")
+    .eq("join_token", joinToken)
+    .maybeSingle();
 
-  // 유효하지 않은 토큰 여부 판단
-  const isInvalidToken = !participant || !event;
-
-  // 날짜 포맷 함수
-  const formatDate = (dateStr: string) =>
-    new Date(dateStr).toLocaleDateString("ko-KR", {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    });
-
-  // 유효하지 않은 토큰 처리
-  if (isInvalidToken) {
+  // 참여자 없으면 에러 UI 반환
+  if (!participant) {
     return (
       <div className="min-h-screen bg-background">
-        {/* 심플 헤더 */}
         <header className="fixed top-0 z-50 h-14 w-full border-b bg-background/95 backdrop-blur">
           <div className="mx-auto flex h-full max-w-[480px] items-center gap-2 px-4">
             <CalendarDays className="h-6 w-6 text-primary" />
@@ -105,9 +88,92 @@ export default function JoinPage() {
     );
   }
 
-  if (!participant || !event) {
-    return null;
+  const eventId = participant.event_id;
+
+  // 이벤트 조회 (maybeSingle: 없으면 null 반환)
+  const { data: event } = await supabase
+    .from("events")
+    .select("id, title, date, location")
+    .eq("id", eventId)
+    .maybeSingle();
+
+  if (!event) {
+    return (
+      <div className="min-h-screen bg-background">
+        <header className="fixed top-0 z-50 h-14 w-full border-b bg-background/95 backdrop-blur">
+          <div className="mx-auto flex h-full max-w-[480px] items-center gap-2 px-4">
+            <CalendarDays className="h-6 w-6 text-primary" />
+            <span className="text-lg font-bold">모이자</span>
+          </div>
+        </header>
+
+        <main className="mx-auto max-w-[480px] px-4 pb-8 pt-14">
+          <Card className="mt-4">
+            <CardContent className="py-8 text-center">
+              <CalendarDays className="mx-auto mb-4 h-10 w-10 text-muted-foreground" />
+              <h2 className="mb-2 text-base font-semibold">
+                이벤트 정보를 찾을 수 없습니다
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                주최자에게 문의해주세요.
+              </p>
+            </CardContent>
+          </Card>
+        </main>
+      </div>
+    );
   }
+
+  // 공지사항 조회 (최신순)
+  const { data: announcements } = await supabase
+    .from("announcements")
+    .select("*")
+    .eq("event_id", eventId)
+    .order("created_at", { ascending: false });
+
+  // 카풀 그룹 + 배정 조회
+  const { data: carpoolGroups } = await supabase
+    .from("carpool_groups")
+    .select("*, carpool_assignments(*)")
+    .eq("event_id", eventId);
+
+  // 이벤트 내 모든 참여자 조회 (카풀 이름 표시용)
+  const { data: allParticipants } = await supabase
+    .from("participants")
+    .select("id, name")
+    .eq("event_id", eventId);
+
+  // 참여자 이름 매핑 생성
+  const participantNameMap: Record<string, string> = {};
+  (allParticipants ?? []).forEach((p) => {
+    participantNameMap[p.id] = p.name;
+  });
+
+  // 정산 항목 조회
+  const { data: expenseItems } = await supabase
+    .from("expense_items")
+    .select("*")
+    .eq("event_id", eventId)
+    .order("created_at", { ascending: true });
+
+  // 본인 정산 분배 조회
+  const expenseItemIds = (expenseItems ?? []).map((item) => item.id);
+  const { data: mySplits } =
+    expenseItemIds.length > 0
+      ? await supabase
+          .from("expense_splits")
+          .select("*")
+          .eq("participant_id", participant.id)
+          .in("item_id", expenseItemIds)
+      : { data: [] };
+
+  // 날짜 포맷 함수
+  const formatDate = (dateStr: string) =>
+    new Date(dateStr).toLocaleDateString("ko-KR", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
 
   return (
     <div className="min-h-screen bg-background">
@@ -169,17 +235,25 @@ export default function JoinPage() {
 
             {/* 공지 탭 */}
             <TabsContent value="announcements" className="mt-4">
-              <AnnouncementTab eventId={event.id} />
+              <AnnouncementTab initialAnnouncements={announcements ?? []} />
             </TabsContent>
 
             {/* 카풀 탭 */}
             <TabsContent value="carpool" className="mt-4">
-              <CarpoolTab participantId={participant.id} eventId={event.id} />
+              <CarpoolTab
+                carpoolGroups={carpoolGroups ?? []}
+                myParticipantId={participant.id}
+                participantNameMap={participantNameMap}
+              />
             </TabsContent>
 
             {/* 정산 탭 */}
             <TabsContent value="expense" className="mt-4">
-              <ExpenseTab participantId={participant.id} eventId={event.id} />
+              <ExpenseTab
+                expenseItems={expenseItems ?? []}
+                mySplits={mySplits ?? []}
+                joinToken={joinToken}
+              />
             </TabsContent>
           </Tabs>
         </div>

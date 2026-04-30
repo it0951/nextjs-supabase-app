@@ -70,6 +70,41 @@ export default async function EventDetailPage({
     .eq("event_id", eventId)
     .order("created_at", { ascending: true });
 
+  // 카풀 그룹 + 배정 조회
+  const { data: carpoolGroups } = await supabase
+    .from("carpool_groups")
+    .select("*, carpool_assignments(*)")
+    .eq("event_id", eventId)
+    .order("created_at", { ascending: true });
+
+  // 정산 항목 조회
+  const { data: expenseItems } = await supabase
+    .from("expense_items")
+    .select("*")
+    .eq("event_id", eventId)
+    .order("created_at", { ascending: true });
+
+  // 정산 분배 조회 (해당 이벤트 항목에 속한 것)
+  const expenseItemIds = (expenseItems ?? []).map((item) => item.id);
+  const { data: expenseSplits } =
+    expenseItemIds.length > 0
+      ? await supabase
+          .from("expense_splits")
+          .select("*")
+          .in("item_id", expenseItemIds)
+      : { data: [] };
+
+  // 확정 참여자 수
+  const confirmedCount = (participants ?? []).filter(
+    (p) => p.status === "confirmed"
+  ).length;
+
+  // 참여자 ID → 이름 매핑 (정산 탭 이름 표시용)
+  const participantNameMap: Record<string, string> = {};
+  (participants ?? []).forEach((p) => {
+    participantNameMap[p.id] = p.name;
+  });
+
   // 초대 링크 서버에서 구성
   // NEXT_PUBLIC_SITE_URL 환경변수 우선, 없으면 request host 헤더 사용
   let baseUrl = process.env.NEXT_PUBLIC_SITE_URL;
@@ -225,12 +260,22 @@ export default async function EventDetailPage({
 
           {/* 카풀 탭 */}
           <TabsContent value="carpool" className="mt-4">
-            <CarpoolTab eventId={eventId} />
+            <CarpoolTab
+              eventId={eventId}
+              initialCarpoolGroups={carpoolGroups ?? []}
+              initialParticipants={participants ?? []}
+            />
           </TabsContent>
 
           {/* 정산 탭 */}
           <TabsContent value="expense" className="mt-4">
-            <ExpenseTab eventId={eventId} />
+            <ExpenseTab
+              eventId={eventId}
+              initialExpenseItems={expenseItems ?? []}
+              initialExpenseSplits={expenseSplits ?? []}
+              confirmedCount={confirmedCount}
+              participantNameMap={participantNameMap}
+            />
           </TabsContent>
         </Tabs>
       </main>

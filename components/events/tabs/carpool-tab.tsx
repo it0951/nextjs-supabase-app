@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
+import { useRouter } from "next/navigation";
 import { Car, UserPlus, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -34,17 +35,27 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { EmptyState } from "@/components/ui/empty-state";
-import { mockCarpoolGroups, mockParticipants } from "@/lib/mock/data";
-import { type CarpoolGroup, type Participant } from "@/lib/mock/types";
+import {
+  createCarpoolGroupAction,
+  deleteCarpoolGroupAction,
+  updateCarpoolAssignmentsAction,
+} from "@/lib/actions/carpools";
+import type { Tables } from "@/types/supabase";
+
+// ─────────────────────────────────────────
+// DB 타입 정의
+// ─────────────────────────────────────────
+type CarpoolGroup = Tables<"carpool_groups"> & {
+  carpool_assignments: Tables<"carpool_assignments">[];
+};
+type Participant = Tables<"participants">;
 
 // ─────────────────────────────────────────
 // 그룹 추가 폼 스키마
 // ─────────────────────────────────────────
-// 폼 값은 string으로 받아서 제출 시 수동으로 변환
 const addGroupSchema = z.object({
-  groupName: z.string().optional(),
-  driverParticipantId: z.string().min(1, "드라이버를 선택해주세요."),
-  seats: z
+  driver_participant_id: z.string().min(1, "드라이버를 선택해주세요."),
+  capacity: z
     .string()
     .min(1, "좌석수를 입력해주세요.")
     .refine(
@@ -59,72 +70,106 @@ type AddGroupFormValues = z.infer<typeof addGroupSchema>;
 interface CarpoolTabProps {
   /** 이벤트 ID */
   eventId: string;
+  /** 서버에서 조회한 카풀 그룹 목록 (carpool_assignments 포함) */
+  initialCarpoolGroups: CarpoolGroup[];
+  /** 서버에서 조회한 전체 참여자 목록 */
+  initialParticipants: Participant[];
 }
 
 /**
- * 카풀 탭 컴포넌트
+ * 카풀 탭 컴포넌트 (Supabase 연동)
  * - 카풀 그룹 카드 목록 표시
  * - 그룹 추가 다이얼로그 (react-hook-form + zod)
  * - 참여자 배정 다이얼로그 (체크박스 선택)
  */
-export function CarpoolTab({ eventId }: CarpoolTabProps) {
-  // mock data에서 해당 이벤트의 카풀 그룹 초기값
-  const [groups, setGroups] = useState<CarpoolGroup[]>(
-    mockCarpoolGroups.filter((g) => g.eventId === eventId)
-  );
+export function CarpoolTab({
+  eventId,
+  initialCarpoolGroups,
+  initialParticipants,
+}: CarpoolTabProps) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
 
-  // 해당 이벤트의 참여자 목록 (confirmed 포함 전체)
-  const allParticipants = mockParticipants.filter((p) => p.eventId === eventId);
   // 확정된 참여자만 (배정 후보)
-  const confirmedParticipants = allParticipants.filter(
+  const confirmedParticipants = initialParticipants.filter(
     (p) => p.status === "confirmed"
   );
 
   // 그룹 추가 다이얼로그 상태
   const [isAddGroupOpen, setIsAddGroupOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // 배정 다이얼로그 상태
   const [assignGroupId, setAssignGroupId] = useState<string | null>(null);
-  // 배정 다이얼로그에서 선택된 참여자 ID 목록
   const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>([]);
+  const [isAssigning, setIsAssigning] = useState(false);
 
   // 그룹 추가 폼
   const form = useForm<AddGroupFormValues>({
     resolver: zodResolver(addGroupSchema),
-    defaultValues: { groupName: "", driverParticipantId: "", seats: "4" },
+    defaultValues: { driver_participant_id: "", capacity: "4" },
   });
 
   // 참여자 이름 조회 헬퍼
   const getParticipantName = (participantId: string): string => {
     return (
-      allParticipants.find((p) => p.id === participantId)?.name ?? "알 수 없음"
+      initialParticipants.find((p) => p.id === participantId)?.name ??
+      "알 수 없음"
     );
   };
 
-  // 이미 다른 그룹에 드라이버 또는 동승자로 배정된 참여자 ID 집합
+  // 이미 다른 그룹에 배정된 참여자 ID 집합 (드라이버 포함)
   const assignedParticipantIds = new Set<string>(
-    groups.flatMap((g) => [g.driverParticipantId, ...g.memberIds])
+    initialCarpoolGroups.flatMap((g) => [
+      g.driver_participant_id,
+      ...g.carpool_assignments.map((a) => a.participant_id),
+    ])
   );
 
   // 그룹 추가 제출 핸들러
-  const handleAddGroup = (values: AddGroupFormValues) => {
-    const newGroup: CarpoolGroup = {
-      id: crypto.randomUUID(),
-      eventId,
-      driverParticipantId: values.driverParticipantId,
-      seats: Number(values.seats),
-      memberIds: [],
-    };
-    setGroups((prev) => [...prev, newGroup]);
-    toast.success("카풀 그룹이 추가되었습니다.");
-    setIsAddGroupOpen(false);
-    form.reset();
+  const handleAddGroup = async (values: AddGroupFormValues) => {
+    setIsSubmitting(true);
+    try {
+      const formData = new FormData();
+      formData.set("driver_participant_id", values.driver_participant_id);
+      formData.set("capacity", values.capacity);
+
+      const result = await createCarpoolGroupAction(
+        eventId,
+        { success: false, error: "" },
+        formData
+      );
+
+      if (result.success) {
+        toast.success("카풀 그룹이 추가되었습니다.");
+        setIsAddGroupOpen(false);
+        form.reset();
+        startTransition(() => router.refresh());
+      } else {
+        toast.error(result.error);
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // 그룹 삭제 핸들러
+  const handleDeleteGroup = async (groupId: string) => {
+    const result = await deleteCarpoolGroupAction(groupId, eventId);
+    if (result.success) {
+      toast.success("카풀 그룹이 삭제되었습니다.");
+      startTransition(() => router.refresh());
+    } else {
+      toast.error(result.error);
+    }
   };
 
   // 배정 다이얼로그 열기
   const handleOpenAssign = (group: CarpoolGroup) => {
     setAssignGroupId(group.id);
-    setSelectedMemberIds([...group.memberIds]);
+    setSelectedMemberIds(
+      group.carpool_assignments.map((a) => a.participant_id)
+    );
   };
 
   // 체크박스 토글 핸들러
@@ -137,59 +182,63 @@ export function CarpoolTab({ eventId }: CarpoolTabProps) {
   };
 
   // 배정 저장 핸들러
-  const handleSaveAssign = () => {
+  const handleSaveAssign = async () => {
     if (!assignGroupId) return;
-    const group = groups.find((g) => g.id === assignGroupId);
-    if (!group) return;
 
-    // 좌석 초과 검사 (드라이버 제외 동승 가능 인원)
-    const maxMembers = group.seats - 1;
-    if (selectedMemberIds.length > maxMembers) {
-      toast.error(
-        `최대 ${maxMembers}명까지 배정할 수 있습니다. (드라이버 포함 총 ${group.seats}석)`
+    setIsAssigning(true);
+    try {
+      const result = await updateCarpoolAssignmentsAction(
+        assignGroupId,
+        eventId,
+        selectedMemberIds
       );
-      return;
-    }
 
-    setGroups((prev) =>
-      prev.map((g) =>
-        g.id === assignGroupId ? { ...g, memberIds: selectedMemberIds } : g
-      )
-    );
-    toast.success("참여자 배정이 저장되었습니다.");
-    setAssignGroupId(null);
+      if (result.success) {
+        toast.success("참여자 배정이 저장되었습니다.");
+        setAssignGroupId(null);
+        startTransition(() => router.refresh());
+      } else {
+        toast.error(result.error);
+      }
+    } finally {
+      setIsAssigning(false);
+    }
   };
 
   // 배정 다이얼로그에서 선택 가능한 참여자 계산
-  // - 드라이버 제외
-  // - 다른 그룹에 이미 배정된 참여자는 비활성화 (현재 그룹 멤버는 허용)
-  const currentGroup = groups.find((g) => g.id === assignGroupId);
-  const currentGroupMemberIds = new Set(currentGroup?.memberIds ?? []);
+  const currentGroup = initialCarpoolGroups.find((g) => g.id === assignGroupId);
+  const currentGroupMemberIds = new Set(
+    currentGroup?.carpool_assignments.map((a) => a.participant_id) ?? []
+  );
 
-  const assignCandidates: Array<Participant & { disabled: boolean }> =
-    confirmedParticipants
-      .filter((p) => p.id !== currentGroup?.driverParticipantId)
-      .map((p) => ({
-        ...p,
-        // 다른 그룹에 배정되어 있으면서 현재 그룹 멤버가 아닌 경우 비활성화
-        disabled:
-          assignedParticipantIds.has(p.id) && !currentGroupMemberIds.has(p.id),
-      }));
+  type CandidateParticipant = Participant & { disabled: boolean };
+  const assignCandidates: CandidateParticipant[] = confirmedParticipants
+    .filter((p) => p.id !== currentGroup?.driver_participant_id)
+    .map((p) => ({
+      ...p,
+      // 다른 그룹에 배정되어 있으면서 현재 그룹 멤버가 아닌 경우 비활성화
+      disabled:
+        assignedParticipantIds.has(p.id) && !currentGroupMemberIds.has(p.id),
+    }));
 
   return (
     <div className="space-y-4">
       {/* 탭 상단: 통계 + 그룹 추가 버튼 */}
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">
-          총 {groups.length}개 그룹
+          총 {initialCarpoolGroups.length}개 그룹
         </p>
-        <Button size="sm" onClick={() => setIsAddGroupOpen(true)}>
+        <Button
+          size="sm"
+          onClick={() => setIsAddGroupOpen(true)}
+          disabled={isPending}
+        >
           그룹 추가
         </Button>
       </div>
 
       {/* 카풀 그룹 카드 목록 */}
-      {groups.length === 0 ? (
+      {initialCarpoolGroups.length === 0 ? (
         <EmptyState
           icon={<Car className="h-full w-full" />}
           title="아직 카풀 그룹이 없습니다"
@@ -197,9 +246,9 @@ export function CarpoolTab({ eventId }: CarpoolTabProps) {
         />
       ) : (
         <div className="space-y-3">
-          {groups.map((group) => {
-            const memberCount = group.memberIds.length;
-            // 드라이버 포함 총 탑승 인원 (드라이버 1명 + 동승자)
+          {initialCarpoolGroups.map((group) => {
+            const memberCount = group.carpool_assignments.length;
+            // 드라이버 포함 총 탑승 인원
             const occupiedSeats = memberCount + 1;
 
             return (
@@ -211,7 +260,7 @@ export function CarpoolTab({ eventId }: CarpoolTabProps) {
                       <div className="flex items-center gap-2">
                         <CardTitle className="text-sm font-semibold">
                           드라이버:{" "}
-                          {getParticipantName(group.driverParticipantId)}
+                          {getParticipantName(group.driver_participant_id)}
                         </CardTitle>
                         <Badge variant="secondary" className="text-xs">
                           드라이버
@@ -219,19 +268,31 @@ export function CarpoolTab({ eventId }: CarpoolTabProps) {
                       </div>
                       {/* 좌석 정보 */}
                       <p className="text-xs text-muted-foreground">
-                        {occupiedSeats}/{group.seats}석
+                        {occupiedSeats}/{group.capacity}석
                       </p>
                     </div>
-                    {/* 배정 관리 버튼 */}
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-8 shrink-0 text-xs"
-                      onClick={() => handleOpenAssign(group)}
-                    >
-                      <UserPlus className="mr-1 h-3.5 w-3.5" />
-                      배정 관리
-                    </Button>
+                    {/* 배정/삭제 버튼 */}
+                    <div className="flex gap-1">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 shrink-0 text-xs"
+                        onClick={() => handleOpenAssign(group)}
+                        disabled={isPending}
+                      >
+                        <UserPlus className="mr-1 h-3.5 w-3.5" />
+                        배정
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 shrink-0 text-xs text-destructive hover:bg-destructive/10"
+                        onClick={() => handleDeleteGroup(group.id)}
+                        disabled={isPending}
+                      >
+                        삭제
+                      </Button>
+                    </div>
                   </div>
                 </CardHeader>
                 <CardContent>
@@ -242,13 +303,13 @@ export function CarpoolTab({ eventId }: CarpoolTabProps) {
                     </p>
                   ) : (
                     <div className="flex flex-wrap gap-1.5">
-                      {group.memberIds.map((memberId) => (
+                      {group.carpool_assignments.map((assignment) => (
                         <Badge
-                          key={memberId}
+                          key={assignment.id}
                           variant="outline"
                           className="text-xs"
                         >
-                          {getParticipantName(memberId)}
+                          {getParticipantName(assignment.participant_id)}
                         </Badge>
                       ))}
                     </div>
@@ -274,7 +335,7 @@ export function CarpoolTab({ eventId }: CarpoolTabProps) {
               {/* 드라이버 선택 */}
               <FormField
                 control={form.control}
-                name="driverParticipantId"
+                name="driver_participant_id"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>드라이버</FormLabel>
@@ -304,7 +365,7 @@ export function CarpoolTab({ eventId }: CarpoolTabProps) {
               {/* 총 좌석수 */}
               <FormField
                 control={form.control}
-                name="seats"
+                name="capacity"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>총 좌석수 (드라이버 포함)</FormLabel>
@@ -314,17 +375,7 @@ export function CarpoolTab({ eventId }: CarpoolTabProps) {
                         min={2}
                         max={15}
                         placeholder="4"
-                        value={field.value ?? ""}
-                        onChange={(e) =>
-                          field.onChange(
-                            e.target.value === ""
-                              ? undefined
-                              : Number(e.target.value)
-                          )
-                        }
-                        onBlur={field.onBlur}
-                        name={field.name}
-                        ref={field.ref}
+                        {...field}
                       />
                     </FormControl>
                     <FormMessage />
@@ -342,7 +393,9 @@ export function CarpoolTab({ eventId }: CarpoolTabProps) {
                 >
                   취소
                 </Button>
-                <Button type="submit">추가</Button>
+                <Button type="submit" disabled={isSubmitting}>
+                  {isSubmitting ? "추가 중..." : "추가"}
+                </Button>
               </DialogFooter>
             </form>
           </Form>
@@ -363,8 +416,9 @@ export function CarpoolTab({ eventId }: CarpoolTabProps) {
           <div className="space-y-3">
             {currentGroup && (
               <p className="text-sm text-muted-foreground">
-                드라이버: {getParticipantName(currentGroup.driverParticipantId)}{" "}
-                | 최대 동승 {currentGroup.seats - 1}명 (총 {currentGroup.seats}
+                드라이버:{" "}
+                {getParticipantName(currentGroup.driver_participant_id)} | 최대
+                동승 {currentGroup.capacity - 1}명 (총 {currentGroup.capacity}
                 석)
               </p>
             )}
@@ -410,7 +464,9 @@ export function CarpoolTab({ eventId }: CarpoolTabProps) {
             <Button variant="outline" onClick={() => setAssignGroupId(null)}>
               취소
             </Button>
-            <Button onClick={handleSaveAssign}>저장</Button>
+            <Button onClick={handleSaveAssign} disabled={isAssigning}>
+              {isAssigning ? "저장 중..." : "저장"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

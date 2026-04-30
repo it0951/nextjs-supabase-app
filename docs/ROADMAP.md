@@ -62,7 +62,7 @@
 | Phase 1.5 | 관리자 페이지(Admin Panel) UI 구현      | ✅ 완료 | 2 ~ 3일   | Phase 1 완료   |
 | Phase 2   | DB 스키마 확정 및 Supabase 설정         | ✅ 완료 | 3 ~ 4일   | Phase 1.5 완료 |
 | Phase 3   | 데이터 연동 - 주최자 기능               | ✅ 완료 | 1주       | Phase 2 완료   |
-| Phase 4   | 데이터 연동 - 참여자 / 카풀 / 정산 기능 | ⏳ 대기 | 1주       | Phase 3 완료   |
+| Phase 4   | 데이터 연동 - 참여자 / 카풀 / 정산 기능 | ✅ 완료 | 1주       | Phase 3 완료   |
 | Phase 5   | 테스트 & 배포                           | ⏳ 대기 | 3 ~ 4일   | Phase 4 완료   |
 
 > **총 예상 기간: 약 5 ~ 6주**
@@ -287,18 +287,18 @@
 
 ### Task 목록
 
-| Task ID  | 작업 내용                                                                        | 상태    | 관련 기능 ID           |
-| -------- | -------------------------------------------------------------------------------- | ------- | ---------------------- |
-| TASK-050 | 이벤트 초대 페이지 데이터 연동 (invite_token 검증, 만료/유효성 처리)             | ⏳ 대기 | F002, F004             |
-| TASK-051 | 참여자 등록 Server Action 구현 (`participants` insert, join_token 자동 생성)     | ⏳ 대기 | F004, F012             |
-| TASK-052 | 참여자 뷰 페이지 데이터 연동 (join_token 검증, 본인 정보/공지/카풀/정산 조회)    | ⏳ 대기 | F003, F006, F007, F012 |
-| TASK-053 | 카풀 그룹 CRUD Server Action 구현                                                | ⏳ 대기 | F006                   |
-| TASK-054 | 카풀 배정 Server Action 구현 (`carpool_assignments` insert/update)               | ⏳ 대기 | F006                   |
-| TASK-055 | 정산 항목 CRUD Server Action 구현 (`expense_items`, 균등 분배 로직)              | ⏳ 대기 | F007                   |
-| TASK-056 | 정산 납부 여부 토글 Server Action 구현 (`expense_splits.is_paid` 업데이트)       | ⏳ 대기 | F007                   |
-| TASK-057 | Vitest 단위 테스트 작성 (균등 분배 계산, 토큰 검증 로직)                         | ⏳ 대기 | -                      |
-| TASK-058 | Playwright MCP로 참여자 전체 플로우 E2E 테스트 (초대 링크 → 등록 → 본인 뷰 확인) | ⏳ 대기 | F004, F012             |
-| TASK-059 | Playwright MCP로 카풀/정산 플로우 E2E 테스트                                     | ⏳ 대기 | F006, F007             |
+| Task ID  | 작업 내용                                                                                                                                                                                                     | 상태    | 관련 기능 ID           |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- | ---------------------- |
+| TASK-050 | 이벤트 초대 페이지 데이터 연동 (`app/invite/[inviteToken]/page.tsx` → async Server Component 전환, `components/invite/join-form.tsx` Client Component 분리, invite_token으로 Supabase events 조회)            | ✅ 완료 | F002, F004             |
+| TASK-051 | 참여자 등록 Server Action 구현 (`lib/actions/participants.ts`에 `registerParticipantAction` 추가, `lib/schemas/participant.ts` 신규 생성, participants INSERT + join_token 반환, 최대 인원 초과 검증)         | ✅ 완료 | F004, F012             |
+| TASK-052 | 참여자 뷰 페이지 데이터 연동 (`app/join/[joinToken]/page.tsx` → async Server Component 전환, join_token 검증, `components/join/` 탭 컴포넌트 props 기반 리팩토링, mock 타입 → DB 타입 통일)                   | ✅ 완료 | F003, F006, F007, F012 |
+| TASK-053 | 카풀 그룹 CRUD Server Action 구현 (`lib/actions/carpools.ts` + `lib/schemas/carpool.ts` 신규, `carpool-tab.tsx` mock→Supabase 전환, 필드명 통일: seats→capacity, memberIds→carpool_assignments 관계 조회)     | ✅ 완료 | F006                   |
+| TASK-054 | 카풀 배정 Server Action 구현 (`updateCarpoolAssignmentsAction`: 기존 배정 DELETE 후 재INSERT, 좌석 초과 서버 검증, `revalidatePath` 호출, `carpool-tab.tsx` 배정 다이얼로그 연동)                             | ✅ 완료 | F006                   |
+| TASK-055 | 정산 항목 CRUD Server Action 구현 (`lib/actions/expenses.ts` 신규, `lib/utils/expense-splits.ts` 순수 함수 분리, expense_items INSERT 후 confirmed 참여자 균등 분배, 필드명 통일: name→title, isPaid→is_paid) | ✅ 완료 | F007                   |
+| TASK-056 | 정산 납부 여부 토글 Server Action 구현 (주최자용 `toggleExpenseSplitPaidAction` + 참여자용 `toggleMyExpenseSplitPaidAction` 이중 권한 구조, join_token으로 본인 split만 수정 가능)                            | ✅ 완료 | F007                   |
+| TASK-057 | Vitest 단위 테스트 작성 (`__tests__/schemas/participant.test.ts`, `carpool.test.ts`, `expense.test.ts`, `__tests__/utils/expense-splits.test.ts` — 균등 분배 엣지 케이스 포함)                                | ✅ 완료 | -                      |
+| TASK-058 | Playwright MCP로 참여자 전체 플로우 E2E 테스트 (초대 링크 → 등록 → 본인 뷰 확인, 잘못된 token 에러 UI 확인)                                                                                                   | ✅ 완료 | F004, F012             |
+| TASK-059 | Playwright MCP로 카풀/정산 플로우 E2E 테스트 (그룹 추가 → 배정 → 참여자 뷰 반영, 항목 추가 → 납부 토글 → 양쪽 화면 반영 확인)                                                                                 | ✅ 완료 | F006, F007             |
 
 ### 테스트 체크리스트
 

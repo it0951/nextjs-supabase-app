@@ -1,26 +1,23 @@
 import { Megaphone } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { mockAnnouncements } from "@/lib/mock/data";
+import type { Tables } from "@/types/supabase";
+
+type Announcement = Tables<"announcements">;
 
 interface AnnouncementTabProps {
-  eventId: string;
+  /** 서버에서 조회한 공지사항 목록 (최신순 정렬됨) */
+  initialAnnouncements: Announcement[];
 }
 
 /**
- * 공지사항 탭 - 읽기 전용
+ * 공지사항 탭 - 읽기 전용 (참여자 뷰)
  * 해당 이벤트의 공지사항 목록을 최신순으로 표시합니다.
  */
-export function AnnouncementTab({ eventId }: AnnouncementTabProps) {
-  // 해당 이벤트의 공지사항 필터링 (최신순 정렬)
-  const announcements = mockAnnouncements
-    .filter((a) => a.eventId === eventId)
-    .sort(
-      (a, b) =>
-        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-    );
-
+export function AnnouncementTab({
+  initialAnnouncements,
+}: AnnouncementTabProps) {
   // 빈 상태 처리
-  if (announcements.length === 0) {
+  if (initialAnnouncements.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-12 text-center">
         <Megaphone className="mb-3 h-10 w-10 text-muted-foreground" />
@@ -33,14 +30,14 @@ export function AnnouncementTab({ eventId }: AnnouncementTabProps) {
 
   return (
     <div className="space-y-3">
-      {announcements.map((announcement) => (
+      {initialAnnouncements.map((announcement) => (
         <Card key={announcement.id}>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-semibold">
               {announcement.title}
             </CardTitle>
             <p className="text-xs text-muted-foreground">
-              {new Date(announcement.createdAt).toLocaleDateString("ko-KR")}
+              {new Date(announcement.created_at).toLocaleDateString("ko-KR")}
             </p>
           </CardHeader>
           <CardContent>

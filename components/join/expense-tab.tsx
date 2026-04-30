@@ -1,12 +1,26 @@
+"use client";
+
+import { useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { Receipt } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { mockExpenseItems, mockExpenseSplits } from "@/lib/mock/data";
+import { Button } from "@/components/ui/button";
+import { toggleMyExpenseSplitPaidAction } from "@/lib/actions/expense-splits";
+import type { Tables } from "@/types/supabase";
+
+type ExpenseItem = Tables<"expense_items">;
+type ExpenseSplit = Tables<"expense_splits">;
 
 interface ExpenseTabProps {
-  participantId: string;
-  eventId: string;
+  /** 서버에서 조회한 정산 항목 목록 */
+  expenseItems: ExpenseItem[];
+  /** 서버에서 조회한 본인 정산 분배 목록 */
+  mySplits: ExpenseSplit[];
+  /** 참여자 join_token (본인 납부 토글 시 사용) */
+  joinToken: string;
 }
 
 /**
@@ -17,22 +31,31 @@ function formatKRW(amount: number): string {
 }
 
 /**
- * 정산 탭 - 읽기 전용
+ * 정산 탭 - 읽기 및 납부 토글 (참여자 뷰)
  * 해당 참여자의 정산 부담 요약 및 항목별 납부 현황을 표시합니다.
+ * 참여자가 직접 본인 납부 여부를 토글할 수 있습니다.
  */
-export function ExpenseTab({ participantId, eventId }: ExpenseTabProps) {
-  // 해당 이벤트의 정산 항목 조회
-  const eventExpenseItems = mockExpenseItems.filter(
-    (item) => item.eventId === eventId
-  );
+export function ExpenseTab({
+  expenseItems,
+  mySplits,
+  joinToken,
+}: ExpenseTabProps) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
 
-  // 해당 참여자의 정산 분배 조회 (이벤트 항목에 해당하는 것만)
-  const eventItemIds = new Set(eventExpenseItems.map((item) => item.id));
-  const mySplits = mockExpenseSplits.filter(
-    (split) =>
-      split.participantId === participantId &&
-      eventItemIds.has(split.expenseItemId)
-  );
+  // 납부 여부 토글 핸들러
+  const handleTogglePaid = async (split: ExpenseSplit) => {
+    const result = await toggleMyExpenseSplitPaidAction(
+      split.id,
+      joinToken,
+      !split.is_paid
+    );
+    if (result.success) {
+      startTransition(() => router.refresh());
+    } else {
+      toast.error(result.error);
+    }
+  };
 
   // 빈 상태 처리
   if (mySplits.length === 0) {
@@ -49,7 +72,7 @@ export function ExpenseTab({ participantId, eventId }: ExpenseTabProps) {
   // 부담액 합계 계산
   const totalAmount = mySplits.reduce((sum, split) => sum + split.amount, 0);
   const paidAmount = mySplits
-    .filter((split) => split.isPaid)
+    .filter((split) => split.is_paid)
     .reduce((sum, split) => sum + split.amount, 0);
   const unpaidAmount = totalAmount - paidAmount;
 
@@ -98,8 +121,8 @@ export function ExpenseTab({ participantId, eventId }: ExpenseTabProps) {
         <p className="text-xs font-medium text-muted-foreground">항목별 내역</p>
         {mySplits.map((split) => {
           // 해당 정산 항목 정보 조회
-          const expenseItem = eventExpenseItems.find(
-            (item) => item.id === split.expenseItemId
+          const expenseItem = expenseItems.find(
+            (item) => item.id === split.item_id
           );
 
           if (!expenseItem) return null;
@@ -109,21 +132,32 @@ export function ExpenseTab({ participantId, eventId }: ExpenseTabProps) {
               <CardContent className="flex items-center justify-between py-3">
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium">
-                    {expenseItem.name}
+                    {expenseItem.title}
                   </p>
                   <p className="text-xs text-muted-foreground">
                     분담금 {formatKRW(split.amount)}
                   </p>
                 </div>
-                {split.isPaid ? (
-                  <Badge className="ml-3 shrink-0 bg-green-100 text-green-700 hover:bg-green-100">
-                    납부 완료
-                  </Badge>
-                ) : (
-                  <Badge className="ml-3 shrink-0 bg-yellow-100 text-yellow-700 hover:bg-yellow-100">
-                    미납부
-                  </Badge>
-                )}
+                <div className="ml-3 flex shrink-0 items-center gap-2">
+                  {split.is_paid ? (
+                    <Badge className="bg-green-100 text-green-700 hover:bg-green-100">
+                      납부 완료
+                    </Badge>
+                  ) : (
+                    <Badge className="bg-yellow-100 text-yellow-700 hover:bg-yellow-100">
+                      미납부
+                    </Badge>
+                  )}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 text-xs"
+                    onClick={() => handleTogglePaid(split)}
+                    disabled={isPending}
+                  >
+                    {split.is_paid ? "취소" : "납부"}
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           );
