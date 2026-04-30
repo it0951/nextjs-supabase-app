@@ -2,10 +2,11 @@
 
 ## Project Overview
 
-- Next.js App Router + Supabase 풀스택 웹 애플리케이션
-- 기술 스택: Next.js (App Router), Supabase (Auth + DB), Tailwind CSS, shadcn/ui, TypeScript (strict)
-- 인증: Supabase Auth (이메일/비밀번호 + Google OAuth)
+- Next.js App Router + Supabase 풀스택 웹 애플리케이션 (모이자 Moiza MVP)
+- 기술 스택: Next.js (App Router), Supabase (Auth + DB + RLS), Tailwind CSS, shadcn/ui, TypeScript (strict)
+- 인증: Supabase Auth (이메일/비밀번호 즉시 가입 + Google OAuth) — 이메일 인증 없음
 - `src/` 디렉토리 없음 — 모든 소스는 루트의 `app/`, `components/`, `lib/`에 위치
+- 현재 상태: Phase 4 완료 (Phase 5 테스트 & 배포 대기 중)
 
 ---
 
@@ -15,43 +16,104 @@
 
 ```
 /
-├── app/                      # Next.js App Router 페이지
-│   ├── layout.tsx            # 루트 레이아웃 (ThemeProvider 포함)
-│   ├── page.tsx              # 홈페이지 (/)
-│   ├── globals.css           # 전역 CSS
-│   ├── auth/                 # 공개 인증 라우트
+├── app/
+│   ├── layout.tsx                    # 루트 레이아웃 (ThemeProvider)
+│   ├── page.tsx                      # 홈페이지 (/) — 로그인 상태에 따라 /dashboard 또는 로그인 페이지로 리다이렉트
+│   ├── globals.css
+│   ├── auth/                         # 공개 인증 라우트 (미들웨어 제외 대상)
 │   │   ├── login/page.tsx
 │   │   ├── sign-up/page.tsx
+│   │   ├── sign-up-success/page.tsx  # /dashboard 즉시 리다이렉트 (이메일 인증 제거됨)
 │   │   ├── forgot-password/page.tsx
 │   │   ├── update-password/page.tsx
-│   │   ├── sign-up-success/page.tsx
 │   │   ├── error/page.tsx
-│   │   ├── confirm/route.ts  # 이메일 OTP 확인
-│   │   └── callback/route.ts # OAuth 콜백
-│   └── protected/            # 인증 필수 라우트
-│       ├── layout.tsx
-│       └── page.tsx
-├── components/               # React 컴포넌트
-│   ├── ui/                   # shadcn/ui 컴포넌트 (자동 생성만)
+│   │   └── callback/route.ts         # OAuth 콜백
+│   ├── (dashboard)/                  # 주최자 보호 라우트 그룹
+│   │   ├── layout.tsx                # Header + BottomTabBar 포함
+│   │   ├── dashboard/page.tsx        # 이벤트 목록 (Supabase 연동)
+│   │   └── events/
+│   │       ├── new/page.tsx          # 이벤트 생성 (NewEventForm Client Component)
+│   │       └── [eventId]/
+│   │           ├── page.tsx          # 이벤트 관리 (Server Component, async params)
+│   │           └── EventDetailClient.tsx
+│   ├── (admin)/                      # 관리자 전용 라우트 그룹
+│   │   ├── layout.tsx                # AdminLayout 포함
+│   │   ├── admin/
+│   │   │   ├── page.tsx              # /admin/dashboard redirect
+│   │   │   ├── dashboard/page.tsx
+│   │   │   ├── users/page.tsx
+│   │   │   ├── events/page.tsx
+│   │   │   └── settings/page.tsx
+│   ├── invite/
+│   │   └── [inviteToken]/page.tsx    # 비회원 초대 (공개, async Server Component)
+│   └── join/
+│       └── [joinToken]/page.tsx      # 참여자 뷰 (공개, async Server Component)
+├── components/
+│   ├── ui/                           # shadcn/ui 컴포넌트 (자동 생성만)
+│   ├── layout/
+│   │   ├── header.tsx                # fixed top-0 h-14
+│   │   ├── bottom-tab-bar.tsx        # fixed bottom-0 h-16
+│   │   └── mobile-layout.tsx         # 비로그인 공개 페이지용
+│   ├── events/
+│   │   ├── event-card.tsx
+│   │   ├── new-event-form.tsx        # 이벤트 생성 Client Component
+│   │   ├── edit-event-dialog.tsx     # 이벤트 수정
+│   │   └── tabs/
+│   │       ├── overview-tab.tsx
+│   │       ├── announcement-tab.tsx
+│   │       ├── participant-tab.tsx
+│   │       ├── carpool-tab.tsx
+│   │       └── expense-tab.tsx
+│   ├── invite/
+│   │   └── join-form.tsx             # 비회원 참여 신청 폼 Client Component
+│   ├── join/                         # 참여자 뷰 탭 컴포넌트
+│   ├── admin/
+│   │   ├── admin-layout.tsx
+│   │   ├── admin-header.tsx
+│   │   ├── admin-sidebar.tsx
+│   │   └── admin-mobile-nav.tsx
 │   ├── login-form.tsx
 │   ├── sign-up-form.tsx
-│   ├── forgot-password-form.tsx
-│   ├── update-password-form.tsx
 │   ├── google-sign-in-button.tsx
-│   ├── auth-button.tsx
 │   └── logout-button.tsx
 ├── lib/
-│   ├── utils.ts              # cn() 유틸 및 hasEnvVars
-│   └── supabase/
-│       ├── server.ts         # Server Component용 클라이언트
-│       ├── client.ts         # Client Component용 클라이언트
-│       └── proxy.ts          # Middleware용 세션 갱신
+│   ├── utils.ts                      # cn() 유틸
+│   ├── supabase/
+│   │   ├── server.ts                 # Server Component용 클라이언트
+│   │   ├── client.ts                 # Client Component용 클라이언트
+│   │   └── proxy.ts                  # Middleware용 세션 갱신
+│   ├── actions/                      # Server Actions ('use server')
+│   │   ├── events.ts                 # createEventAction, updateEventAction, deleteEventAction
+│   │   ├── announcements.ts          # createAnnouncementAction, updateAnnouncementAction, deleteAnnouncementAction
+│   │   ├── participants.ts           # updateParticipantStatusAction, registerParticipantAction
+│   │   ├── carpools.ts               # createCarpoolGroupAction, deleteCarpoolGroupAction, updateCarpoolAssignmentsAction
+│   │   ├── expenses.ts               # createExpenseItemAction, deleteExpenseItemAction
+│   │   └── expense-splits.ts         # toggleExpenseSplitPaidAction, toggleMyExpenseSplitPaidAction
+│   ├── schemas/                      # Zod 스키마
+│   │   ├── event.ts
+│   │   ├── announcement.ts
+│   │   ├── participant.ts
+│   │   ├── carpool.ts
+│   │   └── expense.ts
+│   ├── types/
+│   │   └── index.ts                  # ActionResult 등 공통 타입
+│   ├── utils/
+│   │   └── expense-splits.ts         # calculateEvenSplits 순수 함수
+│   └── mock/                         # Phase 1 Mock 데이터 (참조용, 신규 사용 금지)
+│       ├── data.ts
+│       ├── types.ts
+│       └── admin-data.ts
 ├── types/
-│   └── supabase.ts           # DB 타입 (CLI 자동 생성)
+│   └── supabase.ts                   # DB 타입 (CLI 자동 생성, 수동 수정 금지)
+├── __tests__/
+│   ├── schemas/                      # Vitest 스키마 단위 테스트
+│   └── utils/                        # Vitest 유틸 단위 테스트
 ├── docs/
-│   └── guides/               # 개발 가이드 문서
-├── proxy.ts                  # 루트 미들웨어 (파일명 변경 금지)
-└── components.json           # shadcn/ui 설정
+│   ├── PRD.md
+│   ├── ROADMAP.md
+│   └── guides/
+├── proxy.ts                          # 루트 미들웨어 (파일명 변경 금지)
+└── components.json                   # shadcn/ui 설정
 ```
 
 ---
@@ -63,6 +125,7 @@
 - 컴포넌트 함수: `PascalCase`
 - 파일명: `kebab-case.tsx`
 - 변수/함수: `camelCase`
+- Server Action 함수: `동사Action` 형태 (예: `createEventAction`, `deleteAnnouncementAction`)
 - 폴더명: `kebab-case` 또는 소문자
 
 ### Import 순서
@@ -80,40 +143,84 @@ import { Button } from "@/components/ui/button";
 
 - 페이지 컴포넌트 (`page.tsx`, `layout.tsx`): `export default`
 - 모든 재사용 컴포넌트: named export (`export function ComponentName`)
+- Server Actions: named export (`export async function createEventAction`)
 
 ---
 
 ## Functionality Implementation Standards
 
-### 새 페이지 추가
+### 새 보호 페이지 추가 (주최자 전용)
 
-- 보호 필요: `app/protected/{route}/page.tsx` 에 생성 → 자동으로 인증 보호됨
-- 공개 페이지: `app/{route}/page.tsx` 에 생성 → `proxy.ts` 조건문에 경로 예외 추가 필요
+- `app/(dashboard)/{route}/page.tsx` 생성 → 미들웨어가 자동으로 인증 보호
 
-### 새 컴포넌트 추가
+### 새 공개 페이지 추가 (비회원 접근 가능)
 
-- 재사용 컴포넌트: `components/{name}.tsx`
-- shadcn/ui 컴포넌트: `npx shadcn@latest add [component-name]` 명령으로만 추가
-
-### Supabase DB 조회
+- `app/{route}/page.tsx` 생성
+- `lib/supabase/proxy.ts`의 리다이렉트 조건에 경로 예외 추가 필수
 
 ```typescript
-// Server Component에서
-const supabase = await createClient(); // lib/supabase/server.ts
-const { data, error } = await supabase.from("table_name").select();
+// lib/supabase/proxy.ts — 공개 경로 추가 예시
+const isPublicRoute =
+  request.nextUrl.pathname.startsWith("/auth") ||
+  request.nextUrl.pathname.startsWith("/invite") ||
+  request.nextUrl.pathname.startsWith("/join") ||
+  request.nextUrl.pathname.startsWith("/new-public-route"); // 추가
 ```
 
-### 공개 라우트 추가 시 proxy.ts 수정
+### 새 관리자 페이지 추가
+
+- `app/(admin)/admin/{route}/page.tsx` 생성
+- `(admin)/layout.tsx`의 역할 검증 로직 그대로 상속
+
+### Server Action 작성 패턴
 
 ```typescript
-// lib/supabase/proxy.ts의 리다이렉트 조건에 경로 추가
-if (
-  request.nextUrl.pathname !== "/" &&
-  !user &&
-  !request.nextUrl.pathname.startsWith("/login") &&
-  !request.nextUrl.pathname.startsWith("/auth") &&
-  !request.nextUrl.pathname.startsWith("/new-public-route") // 추가
-) {
+// lib/actions/events.ts
+"use server";
+
+import { createClient } from "@/lib/supabase/server";
+import { revalidatePath } from "next/cache";
+import { type ActionResult } from "@/lib/types";
+
+export async function createEventAction(
+  formData: FormData
+): Promise<ActionResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { success: false, error: "인증이 필요합니다" };
+
+  // 비즈니스 로직...
+  revalidatePath("/dashboard");
+  return { success: true };
+}
+```
+
+### async params 패턴 (Next.js 16 필수)
+
+```typescript
+// ✅ Next.js 16: params는 반드시 await
+export default async function Page({
+  params,
+}: {
+  params: Promise<{ eventId: string }>;
+}) {
+  const { eventId } = await params;
+  // ...
+}
+
+// ❌ 금지: 동기 접근
+export default function Page({ params }: { params: { eventId: string } }) {
+  const { eventId } = params; // 빌드 오류
+}
+```
+
+### Supabase DB 조회 (Server Component)
+
+```typescript
+const supabase = await createClient(); // lib/supabase/server.ts
+const { data, error } = await supabase.from("table_name").select();
 ```
 
 ---
@@ -125,36 +232,15 @@ if (
 | 환경                             | import 경로             | 함수                     |
 | -------------------------------- | ----------------------- | ------------------------ |
 | Server Component / Route Handler | `@/lib/supabase/server` | `await createClient()`   |
+| Server Action (`'use server'`)   | `@/lib/supabase/server` | `await createClient()`   |
 | Client Component                 | `@/lib/supabase/client` | `createClient()`         |
 | Middleware (proxy.ts)            | `@/lib/supabase/proxy`  | `updateSession(request)` |
 
-### Server Component 사용 패턴
-
-```typescript
-import { createClient } from "@/lib/supabase/server";
-
-export default async function Page() {
-  const supabase = await createClient(); // 함수 내부에서 매번 생성
-  const { data } = await supabase.from("table").select();
-}
-```
-
-### Client Component 사용 패턴
-
-```typescript
-"use client";
-import { createClient } from "@/lib/supabase/client";
-
-export function ClientComponent() {
-  const supabase = createClient();
-  // ...
-}
-```
-
 ### 절대 금지: Middleware 수정 시
 
-- `createServerClient` 호출과 `supabase.auth.getClaims()` 호출 사이에 어떤 코드도 삽입 금지
-- 새 Response 객체 생성 시 반드시 쿠키 복사 (`myNewResponse.cookies.setAll(supabaseResponse.cookies.getAll())`)
+- `createServerClient` 호출과 `supabase.auth.getClaims()` 호출 사이에 코드 삽입 금지
+- 새 Response 객체 생성 시 반드시 쿠키 복사
+- Supabase 클라이언트를 전역 변수로 선언 금지 (함수 내부에서 매번 생성)
 
 ---
 
@@ -162,17 +248,25 @@ export function ClientComponent() {
 
 ### 라우트 분류
 
-| 분류        | 경로           | 동작                                   |
-| ----------- | -------------- | -------------------------------------- |
-| 보호 라우트 | `/protected/*` | 비인증 시 `/auth/login`으로 리다이렉트 |
-| 공개 라우트 | `/`, `/auth/*` | 인증 없이 접근 가능                    |
+| 분류             | 경로                   | 동작                                       |
+| ---------------- | ---------------------- | ------------------------------------------ |
+| 주최자 보호      | `/(dashboard)/*`       | 비인증 시 `/auth/login`으로 리다이렉트     |
+| 관리자 보호      | `/(admin)/admin/*`     | 비관리자 시 `/dashboard`로 리다이렉트      |
+| 공개 (비회원)    | `/invite/*`, `/join/*` | 인증 없이 접근 가능 (proxy.ts 예외 처리됨) |
+| 공개 (인증 관련) | `/auth/*`              | 인증 없이 접근 가능                        |
+
+### 관리자 판별 기준
+
+```typescript
+// lib/supabase/proxy.ts
+const isAdmin =
+  claims?.user_metadata?.role === "admin" ||
+  MOCK_ADMIN_EMAILS.includes(claims?.email ?? "");
+```
 
 ### 인증 확인 (Server Component)
 
 ```typescript
-import { createClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
-
 const supabase = await createClient();
 const {
   data: { user },
@@ -180,111 +274,118 @@ const {
 if (!user) redirect("/auth/login");
 ```
 
-### 이메일 확인: `app/auth/confirm/route.ts`
+### 이메일 가입 방식
 
-- OTP 토큰 검증 후 리다이렉트 처리
-- 이 파일 직접 수정 시 인증 흐름 전체에 영향
+- 이메일 인증 없음 — Supabase `Confirm email` 비활성화 상태
+- 가입 즉시 세션 생성 → `/dashboard` 리다이렉트
+- `app/auth/confirm/` 디렉토리는 삭제됨 (재생성 금지)
+
+---
+
+## Database & RLS Standards
+
+### 테이블 목록 (Phase 2에서 확정)
+
+| 테이블명              | 주요 컬럼                                     | 특이사항                         |
+| --------------------- | --------------------------------------------- | -------------------------------- |
+| `profiles`            | id, role (admin/user)                         | auth.users와 1:1                 |
+| `events`              | owner_id, title, date, location, invite_token | invite_token: DB 자동 생성       |
+| `participants`        | event_id, name, phone, status, join_token     | join_token: DB 자동 생성, UNIQUE |
+| `announcements`       | event_id, title, content                      | event 삭제 시 CASCADE            |
+| `carpool_groups`      | event_id, driver_participant_id, capacity     | Mock의 seats → DB에서 capacity   |
+| `carpool_assignments` | group_id, participant_id                      | UNIQUE(group_id, participant_id) |
+| `expense_items`       | event_id, title, amount                       | Mock의 name → DB에서 title       |
+| `expense_splits`      | item_id, participant_id, amount, is_paid      | Mock의 isPaid → DB에서 is_paid   |
+
+### Mock → DB 필드명 매핑 (혼동 주의)
+
+| Mock 필드       | DB 필드                    | 위치           |
+| --------------- | -------------------------- | -------------- |
+| `name`          | `title`                    | expense_items  |
+| `isPaid`        | `is_paid`                  | expense_splits |
+| `seats`         | `capacity`                 | carpool_groups |
+| `memberIds[]`   | `carpool_assignments` 관계 | 정규화됨       |
+| `expenseItemId` | `item_id`                  | expense_splits |
+
+### TypeScript 타입 사용
+
+```typescript
+// ✅ DB 타입 참조
+import { type Database } from "@/types/supabase";
+type Event = Database["public"]["Tables"]["events"]["Row"];
+
+// ❌ Mock 타입 import 금지 (신규 코드에서)
+import { type MockEvent } from "@/lib/mock/types"; // 금지
+```
+
+### DB 타입 재생성
+
+```bash
+npx supabase gen types typescript --linked > types/supabase.ts
+```
+
+또는 MCP: `mcp__supabase__generate_typescript_types`
 
 ---
 
 ## TypeScript Standards
 
 - `any` 타입 절대 사용 금지 — `unknown` 또는 정확한 타입 정의 사용
-- Supabase 테이블 타입: `@/types/supabase` 의 `Database` 타입 참조
-- DB 타입 재생성: `npx supabase gen types typescript --linked > types/supabase.ts`
 - `// @ts-ignore`, `// @ts-expect-error` 사용 금지
-
-```typescript
-// ✅ 올바른 예
-import { type Database } from "@/types/supabase";
-type User = Database["public"]["Tables"]["users"]["Row"];
-
-// ❌ 잘못된 예
-const data: any = await supabase.from("users").select();
-```
+- `types/supabase.ts` 수동 편집 금지 (CLI로만 재생성)
+- Server Action 반환 타입: `ActionResult` (`lib/types/index.ts` 정의)
 
 ---
 
 ## Styling Standards (Mobile-First)
 
-이 프로젝트는 **모바일 퍼스트** 기준으로 UI를 구현합니다.
-
 ### 기본 규칙
 
 - Tailwind CSS 클래스만 사용, `style={{}}` 인라인 스타일 금지
 - 조건부 클래스: `cn()` 유틸 사용 (`import { cn } from "@/lib/utils"`)
-- 다크 모드: `dark:` 접두사 사용 (ThemeProvider가 `app/layout.tsx`에 설정됨)
+- 다크 모드: `dark:` 접두사 사용
 - **반응형 순서**: 기본(모바일) → `sm:` → `md:` → `lg:` (모바일 클래스 먼저)
-- shadcn/ui 컴포넌트 스타일 직접 수정 금지 → variant/className prop 활용
 
-### 모바일 퍼스트 레이아웃 패턴
+### 레이아웃 패턴
 
 ```typescript
-// ✅ 전체 페이지 래퍼 — (dashboard) 그룹 내 모든 페이지
-<div className="min-h-screen bg-background">
-  {/* Header: fixed top-0 z-50 h-14 — layout에서 이미 제공 */}
-  <main className="pt-14 pb-20 px-4">
-    {children}
-  </main>
-  {/* BottomTabBar: fixed bottom-0 z-50 h-16 — layout에서 이미 제공 */}
-</div>
+// ✅ (dashboard) 그룹 — layout.tsx에서 Header/BottomTabBar 자동 제공
+<main className="pt-14 pb-20 px-4">
+  {children}
+</main>
 
-// ✅ 콘텐츠 컨테이너 (선택적, 넓은 화면 중앙 정렬 필요 시)
+// ✅ 콘텐츠 컨테이너
 <div className="max-w-[480px] mx-auto">
 
-// ✅ 섹션 간격
-<div className="space-y-4">   // 카드 목록
-<div className="space-y-6">   // 섹션 간
+// ✅ (admin) 그룹
+<main className="px-4 pb-8 pt-14 md:pl-56">
+  <div className="mx-auto max-w-[1200px]">{children}</div>
+</main>
 
-// ✅ 카드 리스트 (1열 세로 스크롤, 모바일 기본)
-<div className="space-y-3">
-  <EventCard /> ...
-</div>
-
-// ❌ 잘못된 예 — 모바일에서 깨짐
-<div className="grid grid-cols-3 gap-4">
+// ✅ 공개 페이지 (invite, join) — MobileLayout 사용
+<MobileLayout>
+  {children}
+</MobileLayout>
 ```
 
 ### 터치 UX 규칙
 
 ```typescript
 // ✅ 터치 타겟 최소 44px
-<button className="h-11 px-4">   // 인라인 버튼
-<Button className="w-full h-12"> // 주요 액션 버튼
+<button className="h-11 px-4">
+<Button className="w-full h-12">  // 주요 액션
 
-// ✅ 다이얼로그 — 모바일 화면 넘침 방지
+// ✅ 다이얼로그
 <DialogContent className="max-w-[92vw] sm:max-w-md">
 
-// ✅ 테이블 — 가로 스크롤 처리
+// ✅ 테이블 가로 스크롤
 <div className="overflow-x-auto -mx-4 px-4">
   <Table>...</Table>
 </div>
 
-// ✅ 탭 — 가로 스크롤 허용
-<TabsList className="w-full overflow-x-auto flex-nowrap justify-start">
-
-// ✅ 폼 Input — 모바일 자동 확대 방지
-<Input className="text-base" />   // text-base (16px) 이상
-
-// ❌ 잘못된 예
-<div style={{ display: "flex", alignItems: "center" }}>
+// ✅ 폼 Input (모바일 자동 확대 방지)
+<Input className="text-base" />
 ```
-
-### 고정 레이아웃 컴포넌트
-
-| 컴포넌트       | 위치 | 클래스                                                                         |
-| -------------- | ---- | ------------------------------------------------------------------------------ |
-| `Header`       | 상단 | `fixed top-0 left-0 right-0 z-50 h-14 bg-background/95 backdrop-blur border-b` |
-| `BottomTabBar` | 하단 | `fixed bottom-0 left-0 right-0 z-50 h-16 bg-background border-t`               |
-
-### 브레이크포인트
-
-| 브레이크포인트 | 너비    | 적용 기준              |
-| -------------- | ------- | ---------------------- |
-| (기본)         | ~479px  | 모바일 — **필수 구현** |
-| `sm:`          | 480px~  | 대화면 모바일          |
-| `md:`          | 768px~  | 태블릿                 |
-| `lg:`          | 1024px~ | 데스크톱 (보조)        |
 
 ---
 
@@ -292,13 +393,15 @@ const data: any = await supabase.from("users").select();
 
 ### 동시 수정이 필요한 파일 쌍
 
-| 작업                    | 수정할 파일                                                             |
-| ----------------------- | ----------------------------------------------------------------------- |
-| 새 보호 페이지 추가     | `app/protected/{route}/page.tsx` (자동 보호, 별도 수정 불필요)          |
-| 새 공개 페이지 추가     | `app/{route}/page.tsx` + `lib/supabase/proxy.ts` (리다이렉트 예외 추가) |
-| DB 스키마 변경          | Supabase 대시보드/마이그레이션 + `types/supabase.ts` 재생성             |
-| 새 shadcn 컴포넌트 추가 | `npx shadcn@latest add` 실행 → `components/ui/` 자동 생성               |
-| 환경변수 추가           | `.env.local` + `lib/utils.ts`의 `hasEnvVars` 수정 검토                  |
+| 작업                    | 수정할 파일                                                                        |
+| ----------------------- | ---------------------------------------------------------------------------------- |
+| 새 주최자 보호 페이지   | `app/(dashboard)/{route}/page.tsx` — 별도 수정 불필요 (자동 보호)                  |
+| 새 공개 페이지 추가     | `app/{route}/page.tsx` + `lib/supabase/proxy.ts` (isPublicRoute 조건 추가)         |
+| 새 관리자 페이지 추가   | `app/(admin)/admin/{route}/page.tsx` — 별도 수정 불필요 (레이아웃이 역할 검증)     |
+| DB 스키마 변경 (DDL)    | `mcp__supabase__apply_migration` 실행 + `types/supabase.ts` 재생성                 |
+| 새 Server Action 추가   | `lib/actions/{domain}.ts` + `lib/schemas/{domain}.ts` (Zod 스키마 필수)            |
+| 새 shadcn 컴포넌트 추가 | `npx shadcn@latest add {name}` → `components/ui/` 자동 생성                        |
+| ROADMAP Task 완료       | `docs/ROADMAP.md` Task 행 `✅ 완료` 표시 + `mcp__shrimp-task-manager__verify_task` |
 
 ---
 
@@ -309,35 +412,42 @@ const data: any = await supabase.from("users").select();
 ```
 파일에 "use client" 있음?
   → YES: lib/supabase/client.ts 사용
-  → NO: Server Component인가?
+  → NO: "use server" 선언 또는 Server Component인가?
       → YES: lib/supabase/server.ts 사용 (함수 내 await createClient())
       → 미들웨어(proxy.ts)인가?
           → YES: lib/supabase/proxy.ts의 updateSession만 호출
 ```
 
-### 컴포넌트 위치 결정 기준
+### 새 기능 구현 위치 결정
 
 ```
-shadcn/ui 기본 컴포넌트?
-  → YES: npx shadcn@latest add 실행 → components/ui/ 자동 배치
-  → NO: 여러 페이지에서 재사용?
-      → YES: components/{name}.tsx
-      → NO: 해당 페이지 폴더 내 배치 고려
+비즈니스 로직 (DB CRUD)?
+  → lib/actions/{domain}.ts (Server Action)
+  → lib/schemas/{domain}.ts (Zod 검증)
+
+UI만 필요?
+  → 주최자 전용: app/(dashboard)/ 하위 또는 components/events/
+  → 비회원 전용: app/invite/ 또는 app/join/ 하위, components/invite/ 또는 components/join/
+  → 관리자 전용: app/(admin)/admin/ 하위, components/admin/
+  → 공통: components/layout/ 또는 components/ui/
+
+순수 함수 (계산 로직)?
+  → lib/utils/{name}.ts
 ```
 
-### 인증 상태 확인 위치
+### Mock 데이터 사용 기준
 
 ```
-Server Component → supabase.auth.getUser() 직접 호출
-Client Component → @supabase/ssr의 onAuthStateChange 또는 세션 확인
-미들웨어 → supabase.auth.getClaims() (proxy.ts에서 이미 처리됨)
+Phase 5 이후 신규 코드에서 lib/mock/ import?
+  → 금지. 반드시 Supabase 타입과 실제 쿼리 사용
+  → lib/mock/은 참조 목적으로만 유지, 신규 import 추가 금지
 ```
 
 ---
 
 ## Prohibited Actions
 
-- `any` 타입 사용 — 타입 안전성 보장 필수
+- `any` 타입 사용
 - `lib/supabase/server.ts`, `lib/supabase/client.ts`, `lib/supabase/proxy.ts` 직접 수정
 - `components/ui/` 폴더에 파일 수동 생성 (반드시 `npx shadcn@latest add` 사용)
 - 루트 `proxy.ts` 파일명 변경 또는 삭제
@@ -347,6 +457,10 @@ Client Component → @supabase/ssr의 onAuthStateChange 또는 세션 확인
 - `// @ts-ignore` 또는 `// @ts-expect-error` 사용
 - 인라인 `style={{}}` 속성 사용
 - `types/supabase.ts` 수동 편집 (CLI로만 재생성)
+- `app/auth/confirm/` 디렉토리 재생성 (삭제된 파일, 이메일 인증 제거됨)
+- 신규 코드에서 `lib/mock/` 타입 또는 데이터 import
+- Mock 타입(`MockEvent` 등)을 Server Component/Action에서 사용
+- `execute_sql`로 DDL 실행 (반드시 `apply_migration` 사용)
 
 ---
 
@@ -365,23 +479,21 @@ npm run build       # 빌드 성공 확인
 
 ### 작업 수명주기
 
-모든 작업은 `shrimp_data/tasks.json`의 `status` 필드로 상태를 추적한다.
-
-| 상태          | 의미    | 전환 시점                |
-| ------------- | ------- | ------------------------ |
-| `pending`     | 대기 중 | 초기 생성 상태           |
-| `in_progress` | 진행 중 | 작업 시작 직후 즉시 전환 |
-| `completed`   | 완료    | 구현 + 검증 완료 후 전환 |
+| 상태          | 전환 시점                |
+| ------------- | ------------------------ |
+| `pending`     | 초기 생성 상태           |
+| `in_progress` | 작업 시작 직후 즉시 전환 |
+| `completed`   | 구현 + 검증 완료 후 전환 |
 
 ### 필수 상태 업데이트 절차
 
 **작업 시작 시:**
 
-- `mcp__shrimp-task-manager__execute_task` 호출 → `status: in_progress`, `updatedAt` 갱신
+- `mcp__shrimp-task-manager__execute_task` 호출 → `status: in_progress`
 
 **작업 완료 시** (`npm run check-all` 통과 후):
 
-1. `mcp__shrimp-task-manager__verify_task` 호출 → `status: completed`, `updatedAt` 갱신
+1. `mcp__shrimp-task-manager__verify_task` 호출 → `status: completed`
 2. `docs/ROADMAP.md` 해당 Task 행 → `✅ 완료` 표시
 
 ### 금지 사항
