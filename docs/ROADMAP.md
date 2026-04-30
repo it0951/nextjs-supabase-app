@@ -63,7 +63,7 @@
 | Phase 2   | DB 스키마 확정 및 Supabase 설정         | ✅ 완료 | 3 ~ 4일   | Phase 1.5 완료 |
 | Phase 3   | 데이터 연동 - 주최자 기능               | ✅ 완료 | 1주       | Phase 2 완료   |
 | Phase 4   | 데이터 연동 - 참여자 / 카풀 / 정산 기능 | ✅ 완료 | 1주       | Phase 3 완료   |
-| Phase 5   | 테스트 & 배포                           | ⏳ 대기 | 3 ~ 4일   | Phase 4 완료   |
+| Phase 4.5 | Admin 인증 구조 개선                    | ✅ 완료 | 1 ~ 2일   | Phase 4 완료   |
 
 > **총 예상 기간: 약 5 ~ 6주**
 
@@ -312,36 +312,35 @@
 
 ---
 
-## Phase 5: 테스트 & 배포 ⏳
+## Phase 4.5: Admin 인증 구조 개선 ✅
 
-> 전체 사용자 플로우를 종합 테스트하고 Vercel에 배포합니다.
+> 현재 `user_metadata.role` + 하드코딩 이메일 목록 기반의 관리자 판별을 `profiles.role` DB 기반으로 통일합니다.
+> Admin 전용 로그인 페이지(`/admin/login`)를 분리하여 UX와 보안을 강화합니다.
 
 ### 목표
 
-- 전체 시나리오 E2E 테스트 통과
-- Vercel 배포 및 환경 변수 설정
-- 프로덕션 환경 검증 및 모니터링
+- 관리자 판별 로직을 `profiles.role = 'admin'` 기반으로 변경
+- `/admin/login` 전용 로그인 페이지 신설 → 로그인 성공 후 `/admin/dashboard` 이동
+- `/admin/*` 비로그인 접근 시 `/admin/login`으로 리다이렉트
+- `MOCK_ADMIN_EMAILS` / `isMockAdmin()` 하드코딩 의존성 제거
 
 ### Task 목록
 
-| Task ID  | 작업 내용                                                                 | 상태    | 관련 기능 ID |
-| -------- | ------------------------------------------------------------------------- | ------- | ------------ |
-| TASK-060 | Playwright E2E 통합 시나리오 작성 (주최자 + 비회원 참여자 전체 흐름)      | ⏳ 대기 | 전체         |
-| TASK-061 | 접근성(a11y) 및 성능(Lighthouse) 점검                                     | ⏳ 대기 | -            |
-| TASK-062 | 에러 핸들링 점검 (404, 500, 토큰 오류, 네트워크 오류 등)                  | ⏳ 대기 | -            |
-| TASK-063 | Vercel 프로젝트 연결 및 환경 변수 설정 (NEXT_PUBLIC_SUPABASE_URL, KEY 등) | ⏳ 대기 | -            |
-| TASK-064 | Supabase Google OAuth Redirect URL을 프로덕션 도메인으로 등록             | ⏳ 대기 | F010         |
-| TASK-065 | 프로덕션 배포 및 스모크 테스트                                            | ⏳ 대기 | -            |
-| TASK-066 | Vercel Analytics / Supabase 로그 모니터링 설정                            | ⏳ 대기 | -            |
-| TASK-067 | README, 사용자 가이드, 운영 매뉴얼 등 최종 문서화                         | ⏳ 대기 | -            |
+| Task ID  | 작업 내용                                                                                                                              | 상태    | 관련 기능 ID |
+| -------- | -------------------------------------------------------------------------------------------------------------------------------------- | ------- | ------------ |
+| TASK-080 | Admin 전용 로그인 페이지 신설 (`app/(admin-login)/admin/login/page.tsx`, `components/admin/admin-login-form.tsx`)                      | ✅ 완료 | F020         |
+| TASK-081 | 미들웨어 수정 — `/admin/login` 인증 예외 추가, 비로그인 `/admin/*` → `/admin/login` 리다이렉트로 변경 (`lib/supabase/proxy.ts`)        | ✅ 완료 | F020         |
+| TASK-082 | Admin 레이아웃 수정 — `profiles.role` DB 조회로 최종 권한 검증, 비로그인 → `/admin/login` 리다이렉트 (`app/(admin)/layout.tsx`)        | ✅ 완료 | F020         |
+| TASK-083 | 일반 로그인 폼 + OAuth 콜백 수정 — `profiles.role` 조회 후 리다이렉트 결정 (`components/login-form.tsx`, `app/auth/callback/route.ts`) | ✅ 완료 | F010, F020   |
+| TASK-084 | `isMockAdmin` / `MOCK_ADMIN_EMAILS` 제거 및 전체 `npm run check-all` + Playwright 검증                                                 | ✅ 완료 | -            |
 
 ### 테스트 체크리스트
 
-- [ ] 주최자 가입 → 이벤트 생성 → 초대 링크 공유 → 참여자 등록 → 카풀 배정 → 정산 → 완료 시나리오 정상 동작
-- [ ] 모바일/태블릿/데스크톱 반응형 정상 동작
-- [ ] Lighthouse 성능 / 접근성 점수 90점 이상
-- [ ] 프로덕션 환경에서 Google OAuth 정상 로그인
-- [ ] 프로덕션 환경에서 invite_token / join_token 정상 동작
+- [ ] 비로그인 상태에서 `/admin/dashboard` 접근 → `/admin/login` 리다이렉트 확인
+- [ ] 일반 사용자 로그인 후 `/admin/dashboard` 접근 → `/dashboard` 리다이렉트 확인
+- [ ] `profiles.role = 'admin'` 사용자로 `/admin/login` 로그인 → `/admin/dashboard` 진입 확인
+- [ ] 비관리자가 `/admin/login`에서 로그인 시 에러 메시지 표시 확인
+- [ ] 기존 `/auth/login` 으로 로그인한 관리자도 `/admin/dashboard` 정상 진입 확인
 
 ---
 
@@ -391,6 +390,7 @@
 | 이벤트 관리       | `/events/[eventId]`     | 주최자 | F001 ~ F003, F005 ~ F007 |
 | 이벤트 초대       | `/invite/[inviteToken]` | 비회원 | F004, F012               |
 | 참여자 뷰         | `/join/[joinToken]`     | 비회원 | F003, F006, F007, F012   |
+| 관리자 로그인     | `/admin/login`          | 관리자 | F020                     |
 | 관리자 대시보드   | `/admin/dashboard`      | 관리자 | F020                     |
 | 사용자 관리       | `/admin/users`          | 관리자 | F021                     |
 | 이벤트 관리(전체) | `/admin/events`         | 관리자 | F022                     |
@@ -403,5 +403,5 @@
 - **Phase 1 → Phase 2**: Phase 1 UI 완성 및 검토 회의(TASK-024) 후 Phase 2 진입. UI에서 도출된 필드를 DB 스키마에 반영
 - **Phase 2 → Phase 3**: Supabase 마이그레이션 적용 및 타입 자동 생성 후 Phase 3 진입
 - **Phase 3 → Phase 4**: 주최자 플로우의 Playwright E2E(TASK-049) 통과 후 Phase 4 진입
-- **Phase 4 → Phase 5**: 모든 단위 테스트 + E2E 테스트 통과 후 Phase 5 진입
+- **Phase 4 → Phase 4.5**: 데이터 연동 완료 후 Admin 인증 구조 개선 진입
 - 각 Phase 진행 중 발견된 이슈는 즉시 ROADMAP에 신규 Task로 추가
