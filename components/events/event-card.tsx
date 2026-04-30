@@ -4,7 +4,7 @@ import Link from "next/link";
 import { CalendarDays, MapPin, Users } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { type Event } from "@/lib/mock/types";
+import { type Event } from "@/types/supabase";
 
 interface EventCardProps {
   event: Event;
@@ -22,7 +22,6 @@ function getEventStatus(dateStr: string): {
   className: string;
 } {
   const eventDate = new Date(dateStr);
-  // "use client" 컴포넌트이므로 new Date() 직접 사용 가능
   const today = new Date();
 
   // 날짜만 비교하기 위해 시간 정보 제거
@@ -73,6 +72,7 @@ function formatEventDate(dateStr: string): string {
 
 /**
  * 이벤트 카드 컴포넌트 (모바일 최적화 가로형 리스트 카드)
+ * - Supabase Event 타입 사용 (snake_case 필드명)
  * - 카드 전체를 /events/${event.id} 링크로 감쌈
  * - 상태 Badge: 예정(blue) / 진행중(green) / 완료(gray)
  */
@@ -119,8 +119,8 @@ export function EventCard({ event, participantCount }: EventCardProps) {
               <Users className="h-3.5 w-3.5 flex-shrink-0" />
               <span>
                 {participantCount}명 참석
-                {event.maxParticipants != null &&
-                  ` / 최대 ${event.maxParticipants}명`}
+                {event.max_participants != null &&
+                  ` / 최대 ${event.max_participants}명`}
               </span>
             </div>
           </div>

@@ -61,7 +61,7 @@
 | Phase 1   | 전체 UI/UX 목업 구현 (Mock 데이터)      | ✅ 완료 | 1 ~ 1.5주 | Phase 0 완료   |
 | Phase 1.5 | 관리자 페이지(Admin Panel) UI 구현      | ✅ 완료 | 2 ~ 3일   | Phase 1 완료   |
 | Phase 2   | DB 스키마 확정 및 Supabase 설정         | ✅ 완료 | 3 ~ 4일   | Phase 1.5 완료 |
-| Phase 3   | 데이터 연동 - 주최자 기능               | ⏳ 대기 | 1주       | Phase 2 완료   |
+| Phase 3   | 데이터 연동 - 주최자 기능               | ✅ 완료 | 1주       | Phase 2 완료   |
 | Phase 4   | 데이터 연동 - 참여자 / 카풀 / 정산 기능 | ⏳ 대기 | 1주       | Phase 3 완료   |
 | Phase 5   | 테스트 & 배포                           | ⏳ 대기 | 3 ~ 4일   | Phase 4 완료   |
 
@@ -230,46 +230,48 @@
 
 ### 테스트 체크리스트
 
-- [ ] 마이그레이션 적용 후 모든 테이블이 정상 생성됨
-- [ ] RLS 정책으로 비인증 사용자는 자신과 무관한 데이터에 접근 불가
-- [ ] invite_token / join_token으로 비회원이 정상적으로 접근 가능
-- [ ] 생성된 TypeScript 타입이 코드에서 정상 import 됨
+- [x] 마이그레이션 적용 후 모든 테이블이 정상 생성됨
+- [x] RLS 정책으로 비인증 사용자는 자신과 무관한 데이터에 접근 불가
+- [x] invite_token / join_token으로 비회원이 정상적으로 접근 가능
+- [x] 생성된 TypeScript 타입이 코드에서 정상 import 됨
 
 ---
 
-## Phase 3: 데이터 연동 - 주최자 기능 ⏳
+## Phase 3: 데이터 연동 - 주최자 기능 ✅
 
 > Phase 1의 Mock 데이터를 실제 Supabase 쿼리로 교체합니다. 주최자가 사용하는 페이지부터 진행합니다.
 
 ### 목표
 
 - 대시보드, 이벤트 생성/관리, 공지, 참여자 관리에 실제 Supabase 연결
-- Server Components / Server Actions 패턴 적용
+- Server Components / Server Actions + useActionState 패턴 적용
+- `lib/actions/` + `lib/schemas/` 파일 구조 기반으로 비즈니스 로직 분리
 - Vitest 단위 테스트 작성
 
 ### Task 목록
 
-| Task ID  | 작업 내용                                                                                        | 상태    | 관련 기능 ID           |
-| -------- | ------------------------------------------------------------------------------------------------ | ------- | ---------------------- |
-| TASK-040 | Vitest 환경 설정 (테스트 러너, jsdom, msw 등)                                                    | ⏳ 대기 | -                      |
-| TASK-041 | 대시보드 페이지 데이터 연동 (`events` 조회, owner_id 기반 필터링)                                | ⏳ 대기 | F011                   |
-| TASK-042 | 이벤트 생성 Server Action 구현 (`events` insert, invite_token 자동 생성)                         | ⏳ 대기 | F001, F002             |
-| TASK-043 | 이벤트 수정/삭제 Server Action 구현                                                              | ⏳ 대기 | F001                   |
-| TASK-044 | 이벤트 관리 페이지 데이터 연동 (개요 탭, 단일 이벤트 조회)                                       | ⏳ 대기 | F001                   |
-| TASK-045 | 공지 CRUD Server Action 구현 (`announcements` 테이블 연동)                                       | ⏳ 대기 | F003                   |
-| TASK-046 | 참여자 관리 데이터 연동 (조회, 상태 변경)                                                        | ⏳ 대기 | F005                   |
-| TASK-047 | 초대 링크 생성/공유 기능 데이터 연동 (invite_token URL 생성)                                     | ⏳ 대기 | F002                   |
-| TASK-048 | Vitest 단위 테스트 작성 (Server Actions, 검증 스키마)                                            | ⏳ 대기 | -                      |
-| TASK-049 | Playwright MCP로 주최자 플로우 통합 테스트 (로그인 → 이벤트 생성 → 공지 작성 → 참여자 상태 변경) | ⏳ 대기 | F010, F001, F003, F005 |
+| Task ID  | 작업 내용                                                                                                                          | 상태    | 관련 기능 ID           |
+| -------- | ---------------------------------------------------------------------------------------------------------------------------------- | ------- | ---------------------- |
+| TASK-040 | 프로젝트 구조 초기화 (`lib/actions/`, `lib/schemas/`, `lib/types/`) + Vitest 환경 설정 (msw 제외, Node 환경)                       | ✅ 완료 | -                      |
+| TASK-041 | 대시보드 페이지 데이터 연동 (`events` 조회, owner_id 필터링, 확정 참여자 수 집계, `EventCard` Supabase 타입 전환)                  | ✅ 완료 | F011                   |
+| TASK-042 | 이벤트 생성 Server Action 구현 (`events` insert, invite_token은 DB 자동 생성, `NewEventForm` Client 컴포넌트 분리, useActionState) | ✅ 완료 | F001, F002             |
+| TASK-043 | 이벤트 수정/삭제 Server Action 구현 (개요 탭 내 `EditEventDialog`, `AlertDialog` 삭제 확인, owner_id RLS 이중 검증)                | ✅ 완료 | F001                   |
+| TASK-044 | 이벤트 관리 페이지 Server Component 전환 (async params, Supabase 단일 이벤트 조회, 초대 링크 서버 구성, `EventDetailClient` 분리)  | ✅ 완료 | F001, F002             |
+| TASK-045 | 공지 CRUD Server Action 구현 (`lib/actions/announcements.ts`, `announcement-tab.tsx` Mock→Supabase 리팩토링)                       | ✅ 완료 | F003                   |
+| TASK-046 | 참여자 관리 데이터 연동 (`lib/actions/participants.ts`, `participant-tab.tsx` Mock→Supabase 리팩토링, 낙관적 UI)                   | ✅ 완료 | F005                   |
+| TASK-048 | Vitest 단위 테스트 작성 (`createEventSchema`, `announcementSchema` 검증 케이스, `__tests__/schemas/`)                              | ✅ 완료 | -                      |
+| TASK-049 | Playwright MCP로 주최자 플로우 E2E 테스트 (로그인 → 이벤트 생성 → 공지 → 참여자 상태 변경 → 이벤트 삭제)                           | ✅ 완료 | F010, F001, F003, F005 |
+
+> **TASK-047 삭제**: invite_token은 이벤트 생성 시 DB에서 자동 생성·저장되므로 별도 처리 불필요. 초대 링크 URL 구성은 TASK-044(개요 탭)에 통합.
 
 ### 테스트 체크리스트
 
-- [ ] Google OAuth로 로그인한 주최자만 자신의 이벤트 목록 조회 가능
-- [ ] 이벤트 생성 시 invite_token이 고유하게 생성됨
-- [ ] 공지 추가/수정/삭제가 즉시 UI에 반영됨 (revalidatePath 동작)
-- [ ] 참여자 상태 변경(확정/대기/취소)이 정상 저장됨
-- [ ] 다른 주최자의 이벤트는 RLS로 차단됨
-- [ ] Playwright E2E: 주최자 전체 플로우가 에러 없이 통과
+- [x] 이메일+비밀번호로 로그인한 주최자만 자신의 이벤트 목록 조회 가능
+- [x] 이벤트 생성 시 invite_token이 DB에서 자동 생성됨
+- [x] 공지 추가/수정/삭제가 즉시 UI에 반영됨 (revalidatePath 동작)
+- [x] 참여자 상태 변경(확정/대기/취소)이 정상 저장됨
+- [x] 다른 주최자의 이벤트는 RLS로 차단됨
+- [x] Playwright E2E: 주최자 전체 플로우가 에러 없이 통과
 
 ---
 

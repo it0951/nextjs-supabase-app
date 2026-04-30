@@ -1,56 +1,85 @@
-"use client";
-
-import { useState } from "react";
-import { notFound } from "next/navigation";
-import { useParams, useRouter } from "next/navigation";
-import { ChevronLeft, Calendar, MapPin, Users, Copy, Link } from "lucide-react";
-import { toast } from "sonner";
+import { notFound, redirect } from "next/navigation";
+import { headers } from "next/headers";
+import {
+  ChevronLeft,
+  Calendar,
+  MapPin,
+  Users,
+  Link as LinkIcon,
+} from "lucide-react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { mockEvents } from "@/lib/mock/data";
-import { type Event } from "@/lib/mock/types";
+import { createClient } from "@/lib/supabase/server";
 import { AnnouncementTab } from "@/components/events/tabs/announcement-tab";
 import { ParticipantTab } from "@/components/events/tabs/participant-tab";
 import { CarpoolTab } from "@/components/events/tabs/carpool-tab";
 import { ExpenseTab } from "@/components/events/tabs/expense-tab";
-
-// 동적 라우트: useParams() 사용으로 정적 프리렌더 비활성화
-export const dynamic = "force-dynamic";
+import { EditEventDialog } from "@/components/events/edit-event-dialog";
+import { DeleteEventDialog } from "@/components/events/delete-event-dialog";
+import { InviteLinkCard } from "@/components/events/invite-link-card";
 
 /**
- * 이벤트 관리 페이지
+ * 이벤트 상세 페이지 (Server Component)
+ * - Next.js 16 async params 패턴 사용
+ * - Supabase에서 이벤트 데이터 조회 + owner_id 검증
  * - 5개 탭: 개요, 공지, 참여자, 카풀, 정산
- * - 개요 탭: 이벤트 정보 + 초대 링크 복사
  */
-export default function EventDetailPage() {
-  const params = useParams();
-  const router = useRouter();
-  const eventId = params.eventId as string;
+export default async function EventDetailPage({
+  params,
+}: {
+  params: Promise<{ eventId: string }>;
+}) {
+  const { eventId } = await params;
 
-  // mock data에서 이벤트 찾기 (동기 계산)
-  const event: Event | null = mockEvents.find((e) => e.id === eventId) ?? null;
+  const supabase = await createClient();
 
-  // 이벤트가 없으면 404 처리
+  // 현재 로그인한 유저 확인
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/auth/login");
+  }
+
+  // 이벤트 조회 (owner_id 기반 RLS 적용됨)
+  const { data: event } = await supabase
+    .from("events")
+    .select("*")
+    .eq("id", eventId)
+    .eq("owner_id", user.id)
+    .single();
+
   if (!event) {
     notFound();
   }
 
-  // window.location은 클라이언트에서만 사용 가능하므로 조건부 접근
-  const [inviteUrl] = useState<string>(() => {
-    if (typeof window === "undefined") return "";
-    return `${window.location.origin}/invite/${event.inviteToken}`;
-  });
+  // 공지사항 목록 조회 (최신순)
+  const { data: announcements } = await supabase
+    .from("announcements")
+    .select("*")
+    .eq("event_id", eventId)
+    .order("created_at", { ascending: false });
 
-  // 초대 링크 복사 핸들러
-  const handleCopyInviteLink = async () => {
-    try {
-      await navigator.clipboard.writeText(inviteUrl);
-      toast.success("초대 링크가 복사되었습니다!");
-    } catch {
-      toast.error("링크 복사에 실패했습니다.");
-    }
-  };
+  // 참여자 목록 조회
+  const { data: participants } = await supabase
+    .from("participants")
+    .select("*")
+    .eq("event_id", eventId)
+    .order("created_at", { ascending: true });
+
+  // 초대 링크 서버에서 구성
+  // NEXT_PUBLIC_SITE_URL 환경변수 우선, 없으면 request host 헤더 사용
+  let baseUrl = process.env.NEXT_PUBLIC_SITE_URL;
+  if (!baseUrl) {
+    const headersList = await headers();
+    const host = headersList.get("host") ?? "localhost:3000";
+    const protocol = process.env.NODE_ENV === "production" ? "https" : "http";
+    baseUrl = `${protocol}://${host}`;
+  }
+  const inviteUrl = `${baseUrl}/invite/${event.invite_token}`;
 
   // 날짜 포맷 함수
   const formatDate = (dateStr: string) =>
@@ -60,23 +89,21 @@ export default function EventDetailPage() {
       day: "numeric",
     });
 
-  if (!event) {
-    return null;
-  }
-
   return (
     <div className="min-h-screen bg-background">
       {/* 상단 헤더: 뒤로가기 + 이벤트 제목 */}
       <header className="fixed top-0 z-50 h-14 w-full border-b bg-background/95 backdrop-blur">
         <div className="mx-auto flex h-full max-w-[480px] items-center gap-2 px-4">
           <Button
+            asChild
             variant="ghost"
             size="icon"
             className="h-8 w-8 shrink-0"
-            onClick={() => router.push("/dashboard")}
             aria-label="뒤로가기"
           >
-            <ChevronLeft className="h-5 w-5" />
+            <Link href="/dashboard">
+              <ChevronLeft className="h-5 w-5" />
+            </Link>
           </Button>
           <h1 className="truncate text-base font-semibold">{event.title}</h1>
         </div>
@@ -136,13 +163,13 @@ export default function EventDetailPage() {
                 </div>
 
                 {/* 최대 인원 (선택 필드) */}
-                {event.maxParticipants !== undefined && (
+                {event.max_participants !== null && (
                   <div className="flex items-start gap-3">
                     <Users className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
                     <div>
                       <p className="text-xs text-muted-foreground">최대 인원</p>
                       <p className="text-sm font-medium">
-                        {event.maxParticipants}명
+                        {event.max_participants}명
                       </p>
                     </div>
                   </div>
@@ -160,42 +187,40 @@ export default function EventDetailPage() {
               </CardContent>
             </Card>
 
-            {/* 초대 링크 카드 */}
+            {/* 초대 링크 카드 (Client Component) */}
+            <InviteLinkCard inviteUrl={inviteUrl} />
+
+            {/* 이벤트 관리 버튼 영역 */}
             <Card>
               <CardHeader className="pb-3">
-                <CardTitle className="text-base">초대 링크</CardTitle>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <LinkIcon className="h-4 w-4" />
+                  이벤트 관리
+                </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-3">
-                {/* 링크 URL 표시 */}
-                <div className="flex items-center gap-2 rounded-md bg-muted px-3 py-2">
-                  <Link className="h-4 w-4 shrink-0 text-muted-foreground" />
-                  <p className="flex-1 truncate text-xs text-muted-foreground">
-                    {inviteUrl || "링크를 생성 중입니다..."}
-                  </p>
-                </div>
-
-                {/* 링크 복사 버튼 */}
-                <Button
-                  variant="outline"
-                  className="h-10 w-full"
-                  onClick={handleCopyInviteLink}
-                  disabled={!inviteUrl}
-                >
-                  <Copy className="mr-2 h-4 w-4" />
-                  링크 복사
-                </Button>
+              <CardContent className="flex gap-2">
+                {/* 수정 다이얼로그 */}
+                <EditEventDialog event={event} />
+                {/* 삭제 다이얼로그 */}
+                <DeleteEventDialog eventId={event.id} />
               </CardContent>
             </Card>
           </TabsContent>
 
           {/* 공지 탭 */}
           <TabsContent value="announcements" className="mt-4">
-            <AnnouncementTab eventId={eventId} />
+            <AnnouncementTab
+              eventId={eventId}
+              initialAnnouncements={announcements ?? []}
+            />
           </TabsContent>
 
           {/* 참여자 탭 */}
           <TabsContent value="participants" className="mt-4">
-            <ParticipantTab eventId={eventId} />
+            <ParticipantTab
+              eventId={eventId}
+              initialParticipants={participants ?? []}
+            />
           </TabsContent>
 
           {/* 카풀 탭 */}

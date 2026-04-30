@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { MoreVertical, Users } from "lucide-react";
+import { useOptimistic, useTransition } from "react";
+import { Users, MoreVertical } from "lucide-react";
+import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -19,12 +20,14 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { EmptyState } from "@/components/ui/empty-state";
-import { mockParticipants } from "@/lib/mock/data";
-import { type Participant, type ParticipantStatus } from "@/lib/mock/types";
+import { updateParticipantStatusAction } from "@/lib/actions/participants";
+import type { Participant, ParticipantStatus } from "@/types/supabase";
 
 interface ParticipantTabProps {
   /** 이벤트 ID */
   eventId: string;
+  /** 서버에서 전달받은 초기 참여자 목록 */
+  initialParticipants: Participant[];
 }
 
 // 상태 레이블 맵핑
@@ -34,7 +37,7 @@ const STATUS_LABEL: Record<ParticipantStatus, string> = {
   cancelled: "취소",
 };
 
-// 상태별 Badge 색상 (variant 대신 className 직접 지정)
+// 상태별 Badge 색상
 const STATUS_CLASS: Record<ParticipantStatus, string> = {
   confirmed: "bg-green-100 text-green-800 hover:bg-green-100",
   pending: "bg-yellow-100 text-yellow-800 hover:bg-yellow-100",
@@ -43,31 +46,48 @@ const STATUS_CLASS: Record<ParticipantStatus, string> = {
 
 /**
  * 참여자 탭 컴포넌트
- * - 참여자 목록 테이블 표시
- * - 상태별 통계 요약
- * - 드롭다운으로 참여자 상태 변경
+ * - Supabase Server Action 기반 상태 변경
+ * - useOptimistic으로 낙관적 UI 적용 (즉시 상태 변경 후 서버 확인)
+ * - 서버 실패 시 롤백 처리 및 에러 토스트 표시
  */
-export function ParticipantTab({ eventId }: ParticipantTabProps) {
-  // mock data에서 해당 이벤트 참여자 초기값 설정
-  const [participants, setParticipants] = useState<Participant[]>(
-    mockParticipants.filter((p) => p.eventId === eventId)
+export function ParticipantTab({
+  eventId,
+  initialParticipants,
+}: ParticipantTabProps) {
+  const [isPending, startTransition] = useTransition();
+
+  // 낙관적 UI: 즉시 상태 반영
+  const [optimisticParticipants, updateOptimistic] = useOptimistic(
+    initialParticipants,
+    (
+      state: Participant[],
+      { id, status }: { id: string; status: ParticipantStatus }
+    ) => state.map((p) => (p.id === id ? { ...p, status } : p))
   );
 
-  // 상태 변경 핸들러
+  // 참여자 상태 변경 핸들러 (낙관적 UI 포함)
   const handleChangeStatus = (id: string, status: ParticipantStatus) => {
-    setParticipants((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, status } : p))
-    );
+    startTransition(async () => {
+      // 낙관적 업데이트 (즉시 UI 변경)
+      updateOptimistic({ id, status });
+
+      // 서버 액션 호출
+      const result = await updateParticipantStatusAction(id, eventId, status);
+      if (!result.success) {
+        // 실패 시 에러 토스트 (revalidatePath로 UI 롤백됨)
+        toast.error(result.error);
+      }
+    });
   };
 
   // 상태별 카운트 계산
-  const confirmedCount = participants.filter(
+  const confirmedCount = optimisticParticipants.filter(
     (p) => p.status === "confirmed"
   ).length;
-  const pendingCount = participants.filter(
+  const pendingCount = optimisticParticipants.filter(
     (p) => p.status === "pending"
   ).length;
-  const cancelledCount = participants.filter(
+  const cancelledCount = optimisticParticipants.filter(
     (p) => p.status === "cancelled"
   ).length;
 
@@ -75,12 +95,12 @@ export function ParticipantTab({ eventId }: ParticipantTabProps) {
     <div className="space-y-4">
       {/* 통계 요약 */}
       <p className="text-sm text-muted-foreground">
-        총 {participants.length}명 (확정 {confirmedCount} / 대기 {pendingCount}{" "}
-        / 취소 {cancelledCount})
+        총 {optimisticParticipants.length}명 (확정 {confirmedCount} / 대기{" "}
+        {pendingCount} / 취소 {cancelledCount})
       </p>
 
       {/* 참여자 목록 */}
-      {participants.length === 0 ? (
+      {optimisticParticipants.length === 0 ? (
         <EmptyState
           icon={<Users className="h-full w-full" />}
           title="아직 참여자가 없습니다"
@@ -101,8 +121,11 @@ export function ParticipantTab({ eventId }: ParticipantTabProps) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {participants.map((participant) => (
-                <TableRow key={participant.id}>
+              {optimisticParticipants.map((participant) => (
+                <TableRow
+                  key={participant.id}
+                  className={isPending ? "opacity-70" : ""}
+                >
                   {/* 이름 */}
                   <TableCell className="font-medium">
                     {participant.name}
@@ -129,6 +152,7 @@ export function ParticipantTab({ eventId }: ParticipantTabProps) {
                           size="icon"
                           className="h-8 w-8"
                           aria-label={`${participant.name} 상태 변경`}
+                          disabled={isPending}
                         >
                           <MoreVertical className="h-4 w-4" />
                         </Button>

@@ -1,27 +1,38 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { Calendar } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { EventCard } from "@/components/events/event-card";
-import { mockEvents, mockParticipants } from "@/lib/mock/data";
-
-/**
- * 특정 이벤트의 confirmed 참여자 수를 계산하는 헬퍼 함수
- */
-function getConfirmedParticipantCount(eventId: string): number {
-  return mockParticipants.filter(
-    (p) => p.eventId === eventId && p.status === "confirmed"
-  ).length;
-}
+import { createClient } from "@/lib/supabase/server";
 
 /**
  * 대시보드 메인 페이지 (Server Component)
- * - mock 데이터에서 이벤트 목록을 가져와 EventCard 리스트로 표시
+ * - Supabase에서 로그인한 유저의 이벤트 목록을 조회
+ * - 각 이벤트의 confirmed 참여자 수 집계 포함
  * - 이벤트 없을 때 EmptyState 표시
  */
 export default async function DashboardPage() {
-  // mock 데이터에서 이벤트 목록 조회 (실제 구현 시 Supabase 쿼리로 교체)
-  const events = mockEvents;
+  const supabase = await createClient();
+
+  // 현재 로그인한 유저 확인
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  // 인증되지 않은 경우 로그인 페이지로 리다이렉트
+  if (!user) {
+    redirect("/auth/login");
+  }
+
+  // 로그인한 유저의 이벤트 목록 조회 (participants 상태 포함)
+  const { data: eventsWithParticipants } = await supabase
+    .from("events")
+    .select("*, participants(status)")
+    .eq("owner_id", user.id)
+    .order("created_at", { ascending: false });
+
+  const events = eventsWithParticipants ?? [];
 
   return (
     <div className="py-4">
@@ -57,13 +68,20 @@ export default async function DashboardPage() {
       ) : (
         /* 이벤트 카드 목록 */
         <div className="flex flex-col gap-3">
-          {events.map((event) => (
-            <EventCard
-              key={event.id}
-              event={event}
-              participantCount={getConfirmedParticipantCount(event.id)}
-            />
-          ))}
+          {events.map((event) => {
+            // confirmed 상태인 참여자 수 계산
+            const participantCount = event.participants.filter(
+              (p: { status: string }) => p.status === "confirmed"
+            ).length;
+
+            return (
+              <EventCard
+                key={event.id}
+                event={event}
+                participantCount={participantCount}
+              />
+            );
+          })}
         </div>
       )}
     </div>

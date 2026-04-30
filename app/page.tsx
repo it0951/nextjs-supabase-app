@@ -5,15 +5,13 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { EventCard } from "@/components/events/event-card";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { createClient } from "@/lib/supabase/server";
-import { mockEvents, mockParticipants } from "@/lib/mock/data";
 import { redirect } from "next/navigation";
 
-function getConfirmedParticipantCount(eventId: string): number {
-  return mockParticipants.filter(
-    (p) => p.eventId === eventId && p.status === "confirmed"
-  ).length;
-}
-
+/**
+ * 루트 홈 페이지 (Server Component)
+ * - 로그인한 유저의 이벤트 목록을 Supabase에서 조회
+ * - 인증 미처리 시 /auth/login으로 리다이렉트
+ */
 export default async function HomePage() {
   const supabase = await createClient();
   const {
@@ -37,7 +35,14 @@ export default async function HomePage() {
       (user.user_metadata?.avatar_url as string | undefined) ?? undefined,
   };
 
-  const events = mockEvents;
+  // Supabase에서 로그인 유저의 이벤트 목록 조회 (participants 상태 포함)
+  const { data: eventsWithParticipants } = await supabase
+    .from("events")
+    .select("*, participants(status)")
+    .eq("owner_id", user.id)
+    .order("created_at", { ascending: false });
+
+  const events = eventsWithParticipants ?? [];
 
   return (
     <DashboardLayout user={dashboardUser}>
@@ -69,13 +74,20 @@ export default async function HomePage() {
           />
         ) : (
           <div className="flex flex-col gap-3">
-            {events.map((event) => (
-              <EventCard
-                key={event.id}
-                event={event}
-                participantCount={getConfirmedParticipantCount(event.id)}
-              />
-            ))}
+            {events.map((event) => {
+              // confirmed 상태인 참여자 수 계산
+              const participantCount = event.participants.filter(
+                (p: { status: string }) => p.status === "confirmed"
+              ).length;
+
+              return (
+                <EventCard
+                  key={event.id}
+                  event={event}
+                  participantCount={participantCount}
+                />
+              );
+            })}
           </div>
         )}
       </div>
