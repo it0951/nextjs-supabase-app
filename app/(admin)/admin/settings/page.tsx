@@ -22,7 +22,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { mockSystemConfig, MOCK_ADMIN_EMAILS } from "@/lib/mock/admin-data";
+import { mockSystemConfig } from "@/lib/mock/admin-data";
 
 // ─────────────────────────────────────────
 // Zod 유효성 스키마 정의
@@ -152,16 +152,14 @@ export default function AdminSettingsPage() {
       <Card>
         <CardHeader>
           <CardTitle>관리자 계정</CardTitle>
-          <CardDescription>현재 관리자 이메일 목록 (읽기 전용)</CardDescription>
+          <CardDescription>
+            관리자 역할은 profiles 테이블의 role 컬럼으로 관리됩니다.
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-wrap gap-2">
-            {MOCK_ADMIN_EMAILS.map((email) => (
-              <Badge key={email} variant="secondary">
-                {email}
-              </Badge>
-            ))}
-          </div>
+          <Badge variant="secondary">
+            DB profiles.role = &apos;admin&apos;
+          </Badge>
         </CardContent>
       </Card>
     </div>

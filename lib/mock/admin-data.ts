@@ -1,11 +1,6 @@
 import { mockEvents, mockParticipants } from "./data";
 
 // ─────────────────────────────────────────
-// 관리자 이메일 목록 (Phase 1: Mock 기반)
-// ─────────────────────────────────────────
-export const MOCK_ADMIN_EMAILS: readonly string[] = ["cheonsik.park@gsitm.com"];
-
-// ─────────────────────────────────────────
 // 타입 정의
 // ─────────────────────────────────────────
 export interface AdminUser {
@@ -29,14 +24,6 @@ export interface SystemConfig {
   contactEmail: string;
   maxEventsPerUser: number;
   maintenanceMode: boolean;
-}
-
-// ─────────────────────────────────────────
-// 관리자 판별 헬퍼
-// ─────────────────────────────────────────
-export function isMockAdmin(email: string | undefined): boolean {
-  if (!email) return false;
-  return MOCK_ADMIN_EMAILS.includes(email);
 }
 
 // ─────────────────────────────────────────

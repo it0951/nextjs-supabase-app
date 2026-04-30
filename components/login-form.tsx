@@ -40,14 +40,24 @@ export function LoginForm({
       });
       if (error) throw error;
 
+      // 로그인 성공 후 사용자 정보 조회
       const {
         data: { user },
       } = await supabase.auth.getUser();
-      const role = user?.user_metadata?.role as string | undefined;
-      const ADMIN_EMAILS = ["cheonsik.park@gsitm.com"];
-      const isAdmin =
-        role === "admin" || ADMIN_EMAILS.includes(user?.email ?? "");
-      router.push(isAdmin ? "/admin" : "/");
+
+      if (!user) throw new Error("사용자 정보를 가져올 수 없습니다.");
+
+      // profiles 테이블에서 role 조회하여 리다이렉트 경로 결정
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .single();
+
+      // 관리자 → /admin/dashboard, 일반 사용자 → /dashboard
+      router.push(
+        profile?.role === "admin" ? "/admin/dashboard" : "/dashboard"
+      );
     } catch (error: unknown) {
       setError(error instanceof Error ? error.message : "An error occurred");
     } finally {

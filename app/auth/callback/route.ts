@@ -1,8 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse, type NextRequest } from "next/server";
 
-const ADMIN_EMAILS = ["cheonsik.park@gsitm.com"];
-
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = request.nextUrl;
   const code = searchParams.get("code");
@@ -23,14 +21,24 @@ export async function GET(request: NextRequest) {
         return NextResponse.redirect(`${origin}${nextParam}`);
       }
 
-      // 어드민 여부에 따라 리다이렉트 경로 결정
+      // 로그인한 사용자 정보 조회
       const {
         data: { user },
       } = await supabase.auth.getUser();
-      const role = user?.user_metadata?.role as string | undefined;
-      const isAdmin =
-        role === "admin" || ADMIN_EMAILS.includes(user?.email ?? "");
-      return NextResponse.redirect(`${origin}${isAdmin ? "/admin" : "/"}`);
+
+      if (user) {
+        // profiles 테이블에서 role 조회하여 리다이렉트 경로 결정
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("role")
+          .eq("id", user.id)
+          .single();
+
+        // 관리자 → /admin/dashboard, 일반 사용자 → /dashboard
+        const redirectPath =
+          profile?.role === "admin" ? "/admin/dashboard" : "/dashboard";
+        return NextResponse.redirect(`${origin}${redirectPath}`);
+      }
     }
   }
 

@@ -47,30 +47,40 @@ export async function updateSession(request: NextRequest) {
   const { data } = await supabase.auth.getClaims();
   const user = data?.claims;
 
-  if (
-    !user &&
-    !request.nextUrl.pathname.startsWith("/login") &&
-    !request.nextUrl.pathname.startsWith("/auth") &&
-    !request.nextUrl.pathname.startsWith("/invite") &&
-    !request.nextUrl.pathname.startsWith("/join")
-  ) {
-    // no user, potentially respond by redirecting the user to the login page
-    const url = request.nextUrl.clone();
-    url.pathname = "/auth/login";
-    return NextResponse.redirect(url);
-  }
+  const { pathname } = request.nextUrl;
 
-  // /admin/* 경로: 관리자 역할 검증 (비관리자는 /dashboard로 리다이렉트)
-  if (request.nextUrl.pathname.startsWith("/admin") && user) {
+  // /admin/* 경로 처리 (일반 라우트 보호보다 먼저 처리)
+  if (pathname.startsWith("/admin") && !pathname.startsWith("/admin/login")) {
+    if (!user) {
+      // 비로그인 사용자 → 관리자 전용 로그인 페이지로 리다이렉트
+      const url = request.nextUrl.clone();
+      url.pathname = "/admin/login";
+      return NextResponse.redirect(url);
+    }
+
+    // 로그인했으나 관리자 역할이 아닌 경우 → 대시보드로 리다이렉트
+    // user_metadata.role 기반 1차 검증 (DB 조회 없이 빠른 판별)
     const role = user.user_metadata?.role as string | undefined;
-    const ADMIN_EMAILS = ["cheonsik.park@gsitm.com"];
-    const userEmail = user.email as string | undefined;
-    const isAdmin = role === "admin" || ADMIN_EMAILS.includes(userEmail ?? "");
-    if (!isAdmin) {
+    if (role !== "admin") {
       const url = request.nextUrl.clone();
       url.pathname = "/dashboard";
       return NextResponse.redirect(url);
     }
+  }
+
+  // 일반 라우트 보호: 비로그인 사용자 → /auth/login 리다이렉트
+  // /admin/* 경로는 위에서 이미 처리했으므로 제외
+  if (
+    !user &&
+    !pathname.startsWith("/login") &&
+    !pathname.startsWith("/auth") &&
+    !pathname.startsWith("/admin") &&
+    !pathname.startsWith("/invite") &&
+    !pathname.startsWith("/join")
+  ) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/auth/login";
+    return NextResponse.redirect(url);
   }
 
   // IMPORTANT: You *must* return the supabaseResponse object as it is.
